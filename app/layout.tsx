@@ -1,31 +1,26 @@
 import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+import { Roboto } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { ThemeProvider } from '@/components/theme-provider'
+import { LanguageProvider } from '@/components/providers/language-provider'
+import { AuthProvider } from '@/components/providers/auth-provider'
 import './globals.css'
 
-const _geist = Geist({ subsets: ["latin"] });
-const _geistMono = Geist_Mono({ subsets: ["latin"] });
+const roboto = Roboto({ 
+  subsets: ["latin"],
+  weight: ['400', '500', '700', '800'],
+  variable: '--font-roboto'
+})
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
-  generator: 'v0.app',
-  icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
-    apple: '/apple-icon.png',
+  title: 'CodeDesignLA - La primera impresión es digital',
+  description: 'Desarrollo de software y soluciones digitales. Creación de páginas web, apps móviles, logos, redes sociales y tarjetas de presentación.',
+  keywords: ['desarrollo web', 'diseño', 'logo', 'apps móviles', 'redes sociales', 'CodeDesignLA'],
+  authors: [{ name: 'CodeDesignLA' }],
+  openGraph: {
+    title: 'CodeDesignLA',
+    description: 'La primera impresión es digital',
+    type: 'website',
   },
 }
 
@@ -35,9 +30,20 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
-      <body className="font-sans antialiased">
-        {children}
+    <html lang="es" suppressHydrationWarning>
+      <body className={`${roboto.variable} font-sans antialiased`}>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="light"
+          enableSystem={false}
+          disableTransitionOnChange
+        >
+          <LanguageProvider>
+            <AuthProvider>
+              {children}
+            </AuthProvider>
+          </LanguageProvider>
+        </ThemeProvider>
         <Analytics />
       </body>
     </html>
