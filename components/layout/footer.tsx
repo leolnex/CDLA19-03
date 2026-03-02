@@ -1,18 +1,28 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useLanguage } from '@/components/providers/language-provider'
 import { Button } from '@/components/ui/button'
 import { Facebook, Instagram, Twitter, MessageCircle, Copy, Check } from 'lucide-react'
+import type { Settings } from '@/lib/types'
 
 export function Footer() {
   const { t } = useLanguage()
   const [copiedEmail, setCopiedEmail] = useState(false)
   const [copiedPhone, setCopiedPhone] = useState(false)
+  const [settings, setSettings] = useState<Settings | null>(null)
 
-  const email = 'contacto@codedesignla.com'
-  const phone = '+15709144529'
+  // Fetch settings from database for dynamic social links
+  useEffect(() => {
+    fetch('/api/settings')
+      .then(res => res.json())
+      .then(data => setSettings(data))
+      .catch(console.error)
+  }, [])
+
+  const email = settings?.email_admin || 'contacto@codedesignla.com'
+  const phone = settings?.whatsapp_number || '+15709144529'
 
   const copyToClipboard = async (text: string, type: 'email' | 'phone') => {
     try {
@@ -30,13 +40,36 @@ export function Footer() {
   }
 
   const handlePhoneClick = () => {
-    // En móvil, abrir marcador; en desktop, copiar
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
       window.location.href = `tel:${phone}`
     } else {
       copyToClipboard(phone, 'phone')
     }
   }
+
+  // Dynamic social links from settings
+  const socialLinks = [
+    { 
+      href: settings?.social_links?.facebook || 'https://facebook.com/codedesignla', 
+      icon: Facebook, 
+      show: !!settings?.social_links?.facebook || true 
+    },
+    { 
+      href: settings?.social_links?.instagram || 'https://instagram.com/codedesignla', 
+      icon: Instagram, 
+      show: !!settings?.social_links?.instagram || true 
+    },
+    { 
+      href: settings?.social_links?.twitter || 'https://twitter.com/codedesignla', 
+      icon: Twitter, 
+      show: !!settings?.social_links?.twitter || true 
+    },
+    { 
+      href: settings?.social_links?.threads || 'https://threads.net/codedesignla', 
+      icon: MessageCircle, 
+      show: !!settings?.social_links?.threads || true 
+    },
+  ]
 
   return (
     <footer className="border-t border-border bg-background">
@@ -53,27 +86,15 @@ export function Footer() {
             <p className="text-sm text-foreground/70">
               {t.footer.tagline}
             </p>
+            {/* Dynamic Social Links */}
             <div className="flex gap-2">
-              <Button variant="outline" size="icon" className="h-9 w-9" asChild>
-                <a href="https://facebook.com/codedesignla" target="_blank" rel="noopener noreferrer">
-                  <Facebook className="h-4 w-4" />
-                </a>
-              </Button>
-              <Button variant="outline" size="icon" className="h-9 w-9" asChild>
-                <a href="https://instagram.com/codedesignla" target="_blank" rel="noopener noreferrer">
-                  <Instagram className="h-4 w-4" />
-                </a>
-              </Button>
-              <Button variant="outline" size="icon" className="h-9 w-9" asChild>
-                <a href="https://twitter.com/codedesignla" target="_blank" rel="noopener noreferrer">
-                  <Twitter className="h-4 w-4" />
-                </a>
-              </Button>
-              <Button variant="outline" size="icon" className="h-9 w-9" asChild>
-                <a href="https://threads.net/codedesignla" target="_blank" rel="noopener noreferrer">
-                  <MessageCircle className="h-4 w-4" />
-                </a>
-              </Button>
+              {socialLinks.filter(s => s.show).map((social, index) => (
+                <Button key={index} variant="outline" size="icon" className="h-9 w-9" asChild>
+                  <a href={social.href} target="_blank" rel="noopener noreferrer">
+                    <social.icon className="h-4 w-4" />
+                  </a>
+                </Button>
+              ))}
             </div>
           </div>
 

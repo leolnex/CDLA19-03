@@ -25,13 +25,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, X } from 'lucide-react'
 import type { Service, ServiceCategory } from '@/lib/types'
 import { categoryLabels } from '@/lib/types'
 
 const emptyService = {
   slug: '',
   category: 'website' as ServiceCategory,
+  customCategory: '',
   title_es: '',
   title_en: '',
   desc_es: '',
@@ -64,17 +65,24 @@ export default function AdminServiciosPage() {
   const handleSave = async () => {
     setLoading(true)
     try {
+      // Prepare data - use customCategory if category is 'otros'
+      const serviceData = {
+        ...editingService,
+        // Store custom category name in the slug if it's "otros"
+        slug: editingService.slug || editingService.title_es.toLowerCase().replace(/\s+/g, '-'),
+      }
+
       if (editingService.id) {
         await fetch(`/api/services/${editingService.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(editingService),
+          body: JSON.stringify(serviceData),
         })
       } else {
         await fetch('/api/services', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(editingService),
+          body: JSON.stringify(serviceData),
         })
       }
       await fetchServices()
@@ -104,6 +112,7 @@ export default function AdminServiciosPage() {
       id: service.id,
       slug: service.slug,
       category: service.category,
+      customCategory: '',
       title_es: service.title_es,
       title_en: service.title_en,
       desc_es: service.desc_es,
@@ -120,6 +129,40 @@ export default function AdminServiciosPage() {
   const openNew = () => {
     setEditingService(emptyService)
     setDialogOpen(true)
+  }
+
+  const addBullet = (lang: 'es' | 'en') => {
+    if (lang === 'es') {
+      setEditingService(prev => ({ ...prev, bullets_es: [...prev.bullets_es, ''] }))
+    } else {
+      setEditingService(prev => ({ ...prev, bullets_en: [...prev.bullets_en, ''] }))
+    }
+  }
+
+  const removeBullet = (lang: 'es' | 'en', index: number) => {
+    if (lang === 'es') {
+      setEditingService(prev => ({
+        ...prev,
+        bullets_es: prev.bullets_es.filter((_, i) => i !== index)
+      }))
+    } else {
+      setEditingService(prev => ({
+        ...prev,
+        bullets_en: prev.bullets_en.filter((_, i) => i !== index)
+      }))
+    }
+  }
+
+  const updateBullet = (lang: 'es' | 'en', index: number, value: string) => {
+    if (lang === 'es') {
+      const newBullets = [...editingService.bullets_es]
+      newBullets[index] = value
+      setEditingService(prev => ({ ...prev, bullets_es: newBullets }))
+    } else {
+      const newBullets = [...editingService.bullets_en]
+      newBullets[index] = value
+      setEditingService(prev => ({ ...prev, bullets_en: newBullets }))
+    }
   }
 
   return (
@@ -174,6 +217,29 @@ export default function AdminServiciosPage() {
                   </Select>
                 </div>
               </div>
+
+              {/* Custom Category Input for "Otros" */}
+              {editingService.category === 'otros' && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950">
+                  <Label className="text-amber-800 dark:text-amber-200">
+                    Nombre personalizado de categoria
+                  </Label>
+                  <Input
+                    value={editingService.customCategory}
+                    onChange={e => setEditingService(prev => ({ 
+                      ...prev, 
+                      customCategory: e.target.value,
+                      slug: e.target.value.toLowerCase().replace(/\s+/g, '-') || prev.slug
+                    }))}
+                    placeholder="Ej: Consultoria SEO, Marketing Digital..."
+                    className="mt-2 border-amber-300 dark:border-amber-700"
+                  />
+                  <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                    Este nombre aparecera como etiqueta en la pagina de servicios
+                  </p>
+                </div>
+              )}
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <Label>Titulo (ES)</Label>
@@ -224,6 +290,69 @@ export default function AdminServiciosPage() {
                   />
                 </div>
               </div>
+
+              {/* Bullets ES */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label>Caracteristicas (ES)</Label>
+                  <Button type="button" variant="outline" size="sm" onClick={() => addBullet('es')}>
+                    <Plus className="h-3 w-3 mr-1" /> Agregar
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {editingService.bullets_es.map((bullet, index) => (
+                    <div key={index} className="flex gap-2">
+                      <Input
+                        value={bullet}
+                        onChange={e => updateBullet('es', index, e.target.value)}
+                        placeholder={`Caracteristica ${index + 1}`}
+                      />
+                      {editingService.bullets_es.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeBullet('es', index)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Bullets EN */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label>Features (EN)</Label>
+                  <Button type="button" variant="outline" size="sm" onClick={() => addBullet('en')}>
+                    <Plus className="h-3 w-3 mr-1" /> Add
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {editingService.bullets_en.map((bullet, index) => (
+                    <div key={index} className="flex gap-2">
+                      <Input
+                        value={bullet}
+                        onChange={e => updateBullet('en', index, e.target.value)}
+                        placeholder={`Feature ${index + 1}`}
+                      />
+                      {editingService.bullets_en.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeBullet('en', index)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div>
                 <Label>Estado</Label>
                 <Select
