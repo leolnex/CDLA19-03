@@ -4,40 +4,39 @@ import { initialData } from './initial-data'
 
 const DATA_FILENAME = 'cdla-data.json'
 
-// Check if Blob token is available
-function hasBlobToken(): boolean {
-  return !!process.env.BLOB_READ_WRITE_TOKEN
-}
-
 // Obtener datos desde Blob
 export async function getData(): Promise<AppData> {
-  // If no token available (e.g., during build), return initial data
-  if (!hasBlobToken()) {
-    return initialData
-  }
-  
   try {
     const { blobs } = await list()
     const dataBlob = blobs.find(b => b.pathname === DATA_FILENAME)
     
     if (dataBlob) {
-      const response = await fetch(dataBlob.url, { cache: 'no-store' })
+      // Use downloadUrl if available, otherwise fall back to url
+      const fetchUrl = dataBlob.downloadUrl || dataBlob.url
+      const response = await fetch(fetchUrl, { 
+        cache: 'no-store',
+        headers: {
+          'Accept': 'application/json',
+        }
+      })
       
-      // Verificar que la respuesta sea OK y sea JSON
+      // Verificar que la respuesta sea OK
       if (!response.ok) {
         console.error('Blob fetch failed with status:', response.status)
-        return initialData
-      }
-      
-      const contentType = response.headers.get('content-type')
-      if (!contentType || !contentType.includes('application/json')) {
-        // Si no es JSON, puede ser que el blob esté corrupto, recrearlo
-        console.error('Blob content is not JSON, recreating...')
+        // Recreate the blob on any error
         await saveData(initialData)
         return initialData
       }
       
       const text = await response.text()
+      
+      // Check if it looks like HTML (error page)
+      if (text.trim().startsWith('<!') || text.trim().startsWith('<html')) {
+        console.error('Received HTML instead of JSON, recreating blob...')
+        await saveData(initialData)
+        return initialData
+      }
+      
       try {
         const data = JSON.parse(text)
         return data as AppData
@@ -59,12 +58,6 @@ export async function getData(): Promise<AppData> {
 
 // Guardar datos en Blob
 export async function saveData(data: AppData): Promise<void> {
-  // If no token available, skip saving
-  if (!hasBlobToken()) {
-    console.warn('No BLOB_READ_WRITE_TOKEN available, skipping save')
-    return
-  }
-  
   try {
     await put(DATA_FILENAME, JSON.stringify(data, null, 2), {
       access: 'public',
@@ -73,7 +66,7 @@ export async function saveData(data: AppData): Promise<void> {
     })
   } catch (error) {
     console.error('Error saving data:', error)
-    throw error
+    // Don't throw - allow app to continue with initial data
   }
 }
 
