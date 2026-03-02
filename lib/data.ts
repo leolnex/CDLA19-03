@@ -11,9 +11,31 @@ export async function getData(): Promise<AppData> {
     const dataBlob = blobs.find(b => b.pathname === DATA_FILENAME)
     
     if (dataBlob) {
-      const response = await fetch(dataBlob.url)
-      const data = await response.json()
-      return data as AppData
+      const response = await fetch(dataBlob.url, { cache: 'no-store' })
+      
+      // Verificar que la respuesta sea OK y sea JSON
+      if (!response.ok) {
+        console.error('Blob fetch failed with status:', response.status)
+        return initialData
+      }
+      
+      const contentType = response.headers.get('content-type')
+      if (!contentType || !contentType.includes('application/json')) {
+        // Si no es JSON, puede ser que el blob esté corrupto, recrearlo
+        console.error('Blob content is not JSON, recreating...')
+        await saveData(initialData)
+        return initialData
+      }
+      
+      const text = await response.text()
+      try {
+        const data = JSON.parse(text)
+        return data as AppData
+      } catch (parseError) {
+        console.error('Error parsing JSON:', parseError)
+        await saveData(initialData)
+        return initialData
+      }
     }
     
     // Si no existe, crear con datos iniciales
@@ -31,6 +53,7 @@ export async function saveData(data: AppData): Promise<void> {
     await put(DATA_FILENAME, JSON.stringify(data, null, 2), {
       access: 'public',
       addRandomSuffix: false,
+      allowOverwrite: true,
     })
   } catch (error) {
     console.error('Error saving data:', error)
