@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Dialog,
@@ -27,7 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Plus, Pencil, Trash2, Upload } from 'lucide-react'
+import { Plus, Pencil, Trash2, Upload, Star, MapPin } from 'lucide-react'
 import type { Project, ServiceCategory } from '@/lib/types'
 import { categoryLabels } from '@/lib/types'
 
@@ -53,16 +54,28 @@ export default function AdminProyectosPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [editingProject, setEditingProject] = useState<typeof emptyProject & { id?: string }>(emptyProject)
   const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchProjects()
   }, [])
 
   const fetchProjects = async () => {
-    const res = await fetch('/api/projects?all=true')
-    const data = await res.json()
-    setProjects(data)
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/projects?all=true')
+      if (!res.ok) throw new Error('Failed to fetch projects')
+      const data = await res.json()
+      setProjects(data)
+    } catch (err) {
+      setError(language === 'es' ? 'Error al cargar proyectos' : 'Error loading projects')
+      console.error('Error fetching projects:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'cover' | 'gallery') => {
@@ -77,6 +90,8 @@ export default function AdminProyectosPage() {
         method: 'POST',
         body: formData,
       })
+      
+      if (!res.ok) throw new Error('Failed to upload')
       const data = await res.json()
       
       if (type === 'cover') {
@@ -87,46 +102,49 @@ export default function AdminProyectosPage() {
           gallery_images: [...prev.gallery_images, data.url],
         }))
       }
-    } catch (error) {
-      console.error('Error uploading:', error)
+    } catch (err) {
+      console.error('Error uploading:', err)
     } finally {
       setUploading(false)
     }
   }
 
   const handleSave = async () => {
-    setLoading(true)
+    setSaving(true)
+    setError(null)
     try {
-      if (editingProject.id) {
-        await fetch(`/api/projects/${editingProject.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(editingProject),
-        })
-      } else {
-        await fetch('/api/projects', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(editingProject),
-        })
-      }
+      const url = editingProject.id ? `/api/projects/${editingProject.id}` : '/api/projects'
+      const method = editingProject.id ? 'PUT' : 'POST'
+      
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingProject),
+      })
+
+      if (!res.ok) throw new Error('Failed to save project')
+      
+      // Refetch from server (source of truth)
       await fetchProjects()
       setDialogOpen(false)
       setEditingProject(emptyProject)
-    } catch (error) {
-      console.error('Error saving project:', error)
+    } catch (err) {
+      setError(language === 'es' ? 'Error al guardar proyecto' : 'Error saving project')
+      console.error('Error saving project:', err)
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
   }
 
   const handleDelete = async () => {
     if (!deleteId) return
     try {
-      await fetch(`/api/projects/${deleteId}`, { method: 'DELETE' })
+      const res = await fetch(`/api/projects/${deleteId}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Failed to delete project')
       await fetchProjects()
-    } catch (error) {
-      console.error('Error deleting project:', error)
+    } catch (err) {
+      setError(language === 'es' ? 'Error al eliminar proyecto' : 'Error deleting project')
+      console.error('Error deleting project:', err)
     } finally {
       setDeleteId(null)
     }
@@ -166,14 +184,14 @@ export default function AdminProyectosPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">{t.admin.projects}</h1>
           <p className="text-foreground/70">{t.admin.projectsDesc}</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={openNew}>
+            <Button onClick={openNew} className="w-full sm:w-auto">
               <Plus className="mr-2 h-4 w-4" />
               {t.admin.newProject}
             </Button>
@@ -273,9 +291,9 @@ export default function AdminProyectosPage() {
               {/* Cover Image */}
               <div>
                 <Label>Imagen de Portada</Label>
-                <div className="mt-2 flex gap-4">
+                <div className="mt-2 flex flex-wrap gap-4">
                   {editingProject.cover_image && (
-                    <div className="relative h-24 w-32 overflow-hidden rounded-lg">
+                    <div className="relative h-24 w-32 overflow-hidden rounded-2xl">
                       <Image
                         src={editingProject.cover_image}
                         alt="Cover"
@@ -284,7 +302,7 @@ export default function AdminProyectosPage() {
                       />
                     </div>
                   )}
-                  <label className="flex h-24 w-32 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border hover:border-foreground/50">
+                  <label className="flex h-24 w-32 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border hover:border-foreground/50">
                     <Upload className="h-6 w-6 text-foreground/50" />
                     <span className="mt-1 text-xs text-foreground/50">
                       {uploading ? 'Subiendo...' : 'Subir'}
@@ -305,7 +323,7 @@ export default function AdminProyectosPage() {
                 <Label>Galeria</Label>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {editingProject.gallery_images.map((img, index) => (
-                    <div key={index} className="group relative h-20 w-24 overflow-hidden rounded-lg">
+                    <div key={index} className="group relative h-20 w-24 overflow-hidden rounded-xl">
                       <Image src={img} alt={`Gallery ${index}`} fill className="object-cover" />
                       <button
                         type="button"
@@ -316,7 +334,7 @@ export default function AdminProyectosPage() {
                       </button>
                     </div>
                   ))}
-                  <label className="flex h-20 w-24 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border hover:border-foreground/50">
+                  <label className="flex h-20 w-24 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-border hover:border-foreground/50">
                     <Plus className="h-5 w-5 text-foreground/50" />
                     <input
                       type="file"
@@ -329,7 +347,7 @@ export default function AdminProyectosPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
                 <div className="flex items-center gap-2">
                   <Switch
                     checked={editingProject.featured}
@@ -339,14 +357,14 @@ export default function AdminProyectosPage() {
                   />
                   <Label>Destacado</Label>
                 </div>
-                <div>
+                <div className="flex-1">
                   <Select
                     value={editingProject.status}
                     onValueChange={(value: 'draft' | 'publish') =>
                       setEditingProject(prev => ({ ...prev, status: value }))
                     }
                   >
-                    <SelectTrigger className="w-32">
+                    <SelectTrigger className="w-full sm:w-32">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -357,12 +375,12 @@ export default function AdminProyectosPage() {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                <Button variant="outline" onClick={() => setDialogOpen(false)} className="w-full sm:w-auto">
                   {t.admin.cancel}
                 </Button>
-                <Button onClick={handleSave} disabled={loading || !editingProject.cover_image}>
-                  {loading ? 'Guardando...' : t.admin.save}
+                <Button onClick={handleSave} disabled={saving || !editingProject.cover_image} className="w-full sm:w-auto">
+                  {saving ? 'Guardando...' : t.admin.save}
                 </Button>
               </div>
             </div>
@@ -370,46 +388,70 @@ export default function AdminProyectosPage() {
         </Dialog>
       </div>
 
-      {/* Projects Grid */}
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {projects.map(project => (
-          <Card key={project.id} className="overflow-hidden border-border">
-            <div className="relative aspect-[16/10]">
-              <Image
-                src={project.cover_image}
-                alt={language === 'es' ? project.title_es : project.title_en}
-                fill
-                className="object-cover"
-              />
-              {project.featured && (
-                <div className="absolute right-2 top-2 h-6 w-6 rounded-full bg-yellow-400" />
-              )}
-            </div>
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h3 className="font-medium">
-                    {language === 'es' ? project.title_es : project.title_en}
-                  </h3>
-                  <p className="text-sm text-foreground/60">{project.location}</p>
+      {/* Error Message */}
+      {error && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
+          {error}
+        </div>
+      )}
+
+      {/* Loading State */}
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-foreground/20 border-t-foreground" />
+        </div>
+      ) : (
+        /* Projects Grid */
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {projects.map(project => (
+            <Card key={project.id} className="overflow-hidden border-border">
+              <div className="relative aspect-[16/10]">
+                <Image
+                  src={project.cover_image}
+                  alt={language === 'es' ? project.title_es : project.title_en}
+                  fill
+                  className="object-cover"
+                />
+                <div className="absolute right-2 top-2 flex gap-1">
+                  {project.featured && (
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-yellow-400">
+                      <Star className="h-3 w-3 text-yellow-900" />
+                    </div>
+                  )}
+                  <Badge variant={project.status === 'publish' ? 'default' : 'secondary'} className="text-xs">
+                    {project.status === 'publish' ? t.admin.published : t.admin.draft}
+                  </Badge>
                 </div>
-                <span className="text-xs text-foreground/50">
-                  {categoryLabels[project.category][language]}
-                </span>
               </div>
-              <div className="mt-3 flex gap-2">
-                <Button variant="outline" size="sm" className="flex-1" onClick={() => openEdit(project)}>
-                  <Pencil className="mr-1 h-3 w-3" />
-                  {t.admin.edit}
-                </Button>
-                <Button variant="ghost" size="icon" onClick={() => setDeleteId(project.id)}>
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-medium truncate">
+                      {language === 'es' ? project.title_es : project.title_en}
+                    </h3>
+                    <div className="mt-1 flex items-center gap-1 text-sm text-foreground/60">
+                      <MapPin className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{project.location}</span>
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-xs text-foreground/50">
+                    {categoryLabels[project.category][language]}
+                  </span>
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <Button variant="outline" size="sm" className="flex-1 h-9" onClick={() => openEdit(project)}>
+                    <Pencil className="mr-1 h-3 w-3" />
+                    {t.admin.edit}
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setDeleteId(project.id)}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
@@ -418,9 +460,9 @@ export default function AdminProyectosPage() {
             <AlertDialogTitle>{t.admin.confirm}</AlertDialogTitle>
             <AlertDialogDescription>{t.admin.deleteConfirm}</AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t.admin.cancel}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete}>{t.admin.delete}</AlertDialogAction>
+          <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
+            <AlertDialogCancel className="w-full sm:w-auto">{t.admin.cancel}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="w-full sm:w-auto">{t.admin.delete}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

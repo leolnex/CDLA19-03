@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { MessageSquare, Clock, Globe, FileText, CheckCircle } from 'lucide-react'
+import { MessageSquare, Clock, Globe, FileText, CheckCircle, AlertCircle } from 'lucide-react'
 import type { ServiceCategory } from '@/lib/types'
 import { categoryLabels } from '@/lib/types'
 
@@ -21,6 +21,7 @@ function ContactForm() {
   const [formType, setFormType] = useState<'contacto' | 'cotizacion'>(preselectedService ? 'cotizacion' : 'contacto')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const [formData, setFormData] = useState({
     name: '',
@@ -40,19 +41,41 @@ function ContactForm() {
     }
   }, [preselectedService])
 
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(email)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setErrorMessage(null)
     
     // Validate required fields
-    if (!formData.name || !formData.email || !formData.message) {
-      alert(language === 'es' ? 'Por favor completa los campos obligatorios' : 'Please complete required fields')
+    if (!formData.name.trim()) {
+      setErrorMessage(language === 'es' ? 'El nombre es obligatorio' : 'Name is required')
+      return
+    }
+
+    if (!formData.email.trim() || !validateEmail(formData.email)) {
+      setErrorMessage(language === 'es' ? 'Ingresa un email valido' : 'Enter a valid email')
+      return
+    }
+
+    if (!formData.message.trim()) {
+      setErrorMessage(language === 'es' ? 'El mensaje es obligatorio' : 'Message is required')
       return
     }
 
     // For cotizacion, service and business_type are required
-    if (formType === 'cotizacion' && (!formData.service || !formData.business_type)) {
-      alert(language === 'es' ? 'Para cotización, selecciona servicio y tipo de negocio' : 'For quote, select service and business type')
-      return
+    if (formType === 'cotizacion') {
+      if (!formData.service) {
+        setErrorMessage(language === 'es' ? 'Selecciona un servicio' : 'Select a service')
+        return
+      }
+      if (!formData.business_type.trim()) {
+        setErrorMessage(language === 'es' ? 'El tipo de negocio es obligatorio para cotizaciones' : 'Business type is required for quotes')
+        return
+      }
     }
 
     setIsSubmitting(true)
@@ -63,25 +86,37 @@ function ContactForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           lead_type: formType,
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone || undefined,
-          city: formData.city || undefined,
-          message: formData.message,
+          name: formData.name.trim(),
+          email: formData.email.trim().toLowerCase(),
+          phone: formData.phone.trim() || undefined,
+          city: formData.city.trim() || undefined,
+          message: formData.message.trim(),
           service: formData.service || undefined,
-          business_type: formData.business_type || undefined,
+          business_type: formData.business_type.trim() || undefined,
           lang: language,
           source_url: typeof window !== 'undefined' ? window.location.href : '',
           status: 'nuevo',
         }),
       })
 
-      if (!response.ok) throw new Error('Failed to submit')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Lead submission failed:', response.status, errorData)
+        }
+        throw new Error(errorData.error || 'Failed to submit')
+      }
 
       setIsSuccess(true)
     } catch (error) {
-      console.error('Error submitting form:', error)
-      alert(language === 'es' ? 'Error al enviar. Intenta de nuevo.' : 'Error sending. Try again.')
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error submitting form:', error)
+      }
+      setErrorMessage(
+        language === 'es' 
+          ? 'Error al enviar el formulario. Por favor intenta de nuevo.' 
+          : 'Error sending form. Please try again.'
+      )
     } finally {
       setIsSubmitting(false)
     }
@@ -89,7 +124,7 @@ function ContactForm() {
 
   const handleWhatsApp = () => {
     const text = language === 'es'
-      ? `Hola, soy ${formData.name}.\n\n${formType === 'cotizacion' ? `Servicio: ${categoryLabels[formData.service as ServiceCategory]?.es || formData.service}\nTipo de negocio: ${formData.business_type}\n\n` : ''}${formData.message}\n\nEmail: ${formData.email}${formData.phone ? `\nTeléfono: ${formData.phone}` : ''}${formData.city ? `\nCiudad: ${formData.city}` : ''}`
+      ? `Hola, soy ${formData.name}.\n\n${formType === 'cotizacion' ? `Servicio: ${categoryLabels[formData.service as ServiceCategory]?.es || formData.service}\nTipo de negocio: ${formData.business_type}\n\n` : ''}${formData.message}\n\nEmail: ${formData.email}${formData.phone ? `\nTelefono: ${formData.phone}` : ''}${formData.city ? `\nCiudad: ${formData.city}` : ''}`
       : `Hi, I'm ${formData.name}.\n\n${formType === 'cotizacion' ? `Service: ${categoryLabels[formData.service as ServiceCategory]?.en || formData.service}\nBusiness type: ${formData.business_type}\n\n` : ''}${formData.message}\n\nEmail: ${formData.email}${formData.phone ? `\nPhone: ${formData.phone}` : ''}${formData.city ? `\nCity: ${formData.city}` : ''}`
     
     window.open(`https://wa.me/15709144529?text=${encodeURIComponent(text)}`, '_blank')
@@ -97,11 +132,11 @@ function ContactForm() {
 
   const handleEmail = () => {
     const subject = language === 'es'
-      ? `Solicitud de ${formType === 'cotizacion' ? 'cotización' : 'contacto'} - ${formData.name}`
+      ? `Solicitud de ${formType === 'cotizacion' ? 'cotizacion' : 'contacto'} - ${formData.name}`
       : `${formType === 'cotizacion' ? 'Quote' : 'Contact'} request - ${formData.name}`
     
     const body = language === 'es'
-      ? `Nombre: ${formData.name}\nEmail: ${formData.email}${formData.phone ? `\nTeléfono: ${formData.phone}` : ''}${formData.city ? `\nCiudad: ${formData.city}` : ''}${formType === 'cotizacion' ? `\nServicio: ${categoryLabels[formData.service as ServiceCategory]?.es || formData.service}\nTipo de negocio: ${formData.business_type}` : ''}\n\nMensaje:\n${formData.message}`
+      ? `Nombre: ${formData.name}\nEmail: ${formData.email}${formData.phone ? `\nTelefono: ${formData.phone}` : ''}${formData.city ? `\nCiudad: ${formData.city}` : ''}${formType === 'cotizacion' ? `\nServicio: ${categoryLabels[formData.service as ServiceCategory]?.es || formData.service}\nTipo de negocio: ${formData.business_type}` : ''}\n\nMensaje:\n${formData.message}`
       : `Name: ${formData.name}\nEmail: ${formData.email}${formData.phone ? `\nPhone: ${formData.phone}` : ''}${formData.city ? `\nCity: ${formData.city}` : ''}${formType === 'cotizacion' ? `\nService: ${categoryLabels[formData.service as ServiceCategory]?.en || formData.service}\nBusiness type: ${formData.business_type}` : ''}\n\nMessage:\n${formData.message}`
     
     window.open(`mailto:contacto@codedesignla.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank')
@@ -158,11 +193,11 @@ function ContactForm() {
     <Card className="mx-auto max-w-xl border-border">
       <CardContent className="p-6">
         {/* Form Type Toggle */}
-        <div className="mb-6 flex rounded-lg border border-border p-1">
+        <div className="mb-6 flex rounded-xl border border-border p-1">
           <button
             type="button"
             onClick={() => setFormType('contacto')}
-            className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+            className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
               formType === 'contacto'
                 ? 'bg-foreground text-background'
                 : 'text-foreground/70 hover:text-foreground'
@@ -173,15 +208,23 @@ function ContactForm() {
           <button
             type="button"
             onClick={() => setFormType('cotizacion')}
-            className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+            className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
               formType === 'cotizacion'
                 ? 'bg-foreground text-background'
                 : 'text-foreground/70 hover:text-foreground'
             }`}
           >
-            {language === 'es' ? 'Cotización' : 'Quote'}
+            {language === 'es' ? 'Cotizacion' : 'Quote'}
           </button>
         </div>
+
+        {/* Error Message */}
+        {errorMessage && (
+          <div className="mb-4 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            {errorMessage}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Cotizacion-specific fields */}
@@ -213,7 +256,6 @@ function ContactForm() {
                   placeholder={t.quote.businessPlaceholder}
                   value={formData.business_type}
                   onChange={e => setFormData(prev => ({ ...prev, business_type: e.target.value }))}
-                  required={formType === 'cotizacion'}
                 />
               </div>
             </>
@@ -226,7 +268,6 @@ function ContactForm() {
               placeholder={t.contact.namePlaceholder}
               value={formData.name}
               onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
-              required
             />
           </div>
 
@@ -238,7 +279,6 @@ function ContactForm() {
               placeholder={t.contact.emailPlaceholder}
               value={formData.email}
               onChange={e => setFormData(prev => ({ ...prev, email: e.target.value }))}
-              required
             />
           </div>
 
@@ -272,7 +312,6 @@ function ContactForm() {
               rows={4}
               value={formData.message}
               onChange={e => setFormData(prev => ({ ...prev, message: e.target.value }))}
-              required
             />
           </div>
 
@@ -297,15 +336,15 @@ function ContactFormFallback() {
     <Card className="mx-auto max-w-xl border-border">
       <CardContent className="p-6">
         <div className="space-y-4">
-          <div className="h-10 animate-pulse rounded-lg bg-muted" />
-          <div className="h-10 animate-pulse rounded bg-muted" />
-          <div className="h-10 animate-pulse rounded bg-muted" />
+          <div className="h-10 animate-pulse rounded-xl bg-muted" />
+          <div className="h-10 animate-pulse rounded-xl bg-muted" />
+          <div className="h-10 animate-pulse rounded-xl bg-muted" />
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="h-10 animate-pulse rounded bg-muted" />
-            <div className="h-10 animate-pulse rounded bg-muted" />
+            <div className="h-10 animate-pulse rounded-xl bg-muted" />
+            <div className="h-10 animate-pulse rounded-xl bg-muted" />
           </div>
-          <div className="h-24 animate-pulse rounded bg-muted" />
-          <div className="h-10 animate-pulse rounded bg-muted" />
+          <div className="h-24 animate-pulse rounded-xl bg-muted" />
+          <div className="h-10 animate-pulse rounded-xl bg-muted" />
         </div>
       </CardContent>
     </Card>

@@ -8,6 +8,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
 import { 
   Save, 
   Facebook, 
@@ -26,6 +32,7 @@ export default function AdminAjustesPage() {
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [loading, setLoading] = useState(false)
   const [savedMessage, setSavedMessage] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -34,8 +41,11 @@ export default function AdminAjustesPage() {
     ]).then(([settingsData, metricsData]) => {
       setSettings(settingsData)
       setMetrics(metricsData)
-    }).catch(console.error)
-  }, [])
+    }).catch(err => {
+      setError(language === 'es' ? 'Error al cargar configuracion' : 'Error loading settings')
+      console.error(err)
+    })
+  }, [language])
 
   const showSavedMessage = (message: string) => {
     setSavedMessage(message)
@@ -45,15 +55,18 @@ export default function AdminAjustesPage() {
   const handleSaveSettings = async () => {
     if (!settings) return
     setLoading(true)
+    setError(null)
     try {
-      await fetch('/api/settings', {
+      const res = await fetch('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),
       })
+      if (!res.ok) throw new Error('Failed to save settings')
       showSavedMessage(language === 'es' ? 'Configuracion guardada' : 'Settings saved')
-    } catch (error) {
-      console.error('Error saving settings:', error)
+    } catch (err) {
+      setError(language === 'es' ? 'Error al guardar configuracion' : 'Error saving settings')
+      console.error('Error saving settings:', err)
     } finally {
       setLoading(false)
     }
@@ -62,15 +75,18 @@ export default function AdminAjustesPage() {
   const handleSaveMetrics = async () => {
     if (!metrics) return
     setLoading(true)
+    setError(null)
     try {
-      await fetch('/api/metrics', {
+      const res = await fetch('/api/metrics', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(metrics),
       })
+      if (!res.ok) throw new Error('Failed to save metrics')
       showSavedMessage(language === 'es' ? 'Metricas guardadas' : 'Metrics saved')
-    } catch (error) {
-      console.error('Error saving metrics:', error)
+    } catch (err) {
+      setError(language === 'es' ? 'Error al guardar metricas' : 'Error saving metrics')
+      console.error('Error saving metrics:', err)
     } finally {
       setLoading(false)
     }
@@ -89,9 +105,7 @@ export default function AdminAjustesPage() {
   if (!settings || !metrics) {
     return (
       <div className="flex justify-center py-12">
-        <div className="animate-pulse text-foreground/60">
-          {language === 'es' ? 'Cargando...' : 'Loading...'}
-        </div>
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-foreground/20 border-t-foreground" />
       </div>
     )
   }
@@ -127,22 +141,9 @@ export default function AdminAjustesPage() {
     },
   ]
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">{t.admin.settings}</h1>
-          <p className="text-foreground/70">{t.admin.settingsDesc}</p>
-        </div>
-        {savedMessage && (
-          <Badge variant="secondary" className="gap-1 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-            <Check className="h-3 w-3" />
-            {savedMessage}
-          </Badge>
-        )}
-      </div>
-
+  // Desktop layout
+  const DesktopLayout = () => (
+    <div className="hidden space-y-6 md:block">
       {/* Contact Settings */}
       <Card className="border-border">
         <CardHeader>
@@ -180,7 +181,7 @@ export default function AdminAjustesPage() {
         </CardContent>
       </Card>
 
-      {/* Social Links - Dynamic */}
+      {/* Social Links */}
       <Card className="border-border">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -326,28 +327,185 @@ export default function AdminAjustesPage() {
           </div>
         </CardContent>
       </Card>
+    </div>
+  )
 
-      {/* Preview Info */}
-      <Card className="border-border bg-muted/20">
-        <CardContent className="pt-6">
-          <div className="flex items-start gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <AlertCircle className="h-4 w-4" />
+  // Mobile layout with accordions
+  const MobileLayout = () => (
+    <div className="space-y-4 md:hidden">
+      <Accordion type="single" collapsible defaultValue="contact" className="space-y-4">
+        {/* Contact Settings */}
+        <AccordionItem value="contact" className="rounded-2xl border border-border px-4">
+          <AccordionTrigger className="py-4">
+            <span className="font-semibold">{language === 'es' ? 'Contacto' : 'Contact'}</span>
+          </AccordionTrigger>
+          <AccordionContent className="pb-4">
+            <div className="space-y-4">
+              <div>
+                <Label>{language === 'es' ? 'Email de administrador' : 'Admin email'}</Label>
+                <Input
+                  value={settings.email_admin}
+                  onChange={e => setSettings(prev => prev ? { ...prev, email_admin: e.target.value } : prev)}
+                  type="email"
+                  placeholder="admin@tudominio.com"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label>{language === 'es' ? 'Numero de WhatsApp' : 'WhatsApp number'}</Label>
+                <Input
+                  value={settings.whatsapp_number}
+                  onChange={e => setSettings(prev => prev ? { ...prev, whatsapp_number: e.target.value } : prev)}
+                  placeholder="+15709144529"
+                  className="mt-1"
+                />
+                <p className="text-xs text-foreground/50 mt-1">
+                  {language === 'es' ? 'Incluye el codigo de pais' : 'Include country code'}
+                </p>
+              </div>
             </div>
-            <div>
-              <h4 className="font-medium">
-                {language === 'es' ? 'Vista previa de cambios' : 'Preview changes'}
-              </h4>
-              <p className="text-sm text-foreground/70 mt-1">
-                {language === 'es' 
-                  ? 'Los cambios en las redes sociales se reflejan automaticamente en el footer. Las metricas se actualizan en la seccion de estadisticas del home.'
-                  : 'Social media changes are automatically reflected in the footer. Metrics are updated in the home stats section.'
-                }
-              </p>
+          </AccordionContent>
+        </AccordionItem>
+
+        {/* Social Links */}
+        <AccordionItem value="social" className="rounded-2xl border border-border px-4">
+          <AccordionTrigger className="py-4">
+            <span className="font-semibold">{language === 'es' ? 'Redes Sociales' : 'Social Media'}</span>
+          </AccordionTrigger>
+          <AccordionContent className="pb-4">
+            <div className="space-y-4">
+              {socialPlatforms.map((platform) => {
+                const value = settings.social_links[platform.key] || ''
+                const isValid = validateUrl(value)
+                
+                return (
+                  <div key={platform.key} className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <platform.icon className={`h-4 w-4 ${platform.color}`} />
+                      {platform.label}
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        value={value}
+                        onChange={e => setSettings(prev => prev ? {
+                          ...prev,
+                          social_links: { ...prev.social_links, [platform.key]: e.target.value }
+                        } : prev)}
+                        placeholder={platform.placeholder}
+                        className={!isValid ? 'border-red-500 pr-10' : ''}
+                      />
+                      {!isValid && (
+                        <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500" />
+                      )}
+                    </div>
+                    {!isValid && (
+                      <p className="text-xs text-red-500">
+                        {language === 'es' ? 'URL no valida' : 'Invalid URL'}
+                      </p>
+                    )}
+                  </div>
+                )
+              })}
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </AccordionContent>
+        </AccordionItem>
+
+        {/* Metrics */}
+        <AccordionItem value="metrics" className="rounded-2xl border border-border px-4">
+          <AccordionTrigger className="py-4">
+            <span className="font-semibold">{language === 'es' ? 'Metricas' : 'Metrics'}</span>
+          </AccordionTrigger>
+          <AccordionContent className="pb-4">
+            <div className="space-y-4">
+              <div>
+                <Label>{language === 'es' ? 'Proyectos entregados' : 'Projects delivered'}</Label>
+                <Input
+                  type="number"
+                  value={metrics.projects_delivered}
+                  onChange={e => setMetrics(prev => prev ? { ...prev, projects_delivered: parseInt(e.target.value) || 0 } : prev)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label>{language === 'es' ? 'Anos de experiencia' : 'Years of experience'}</Label>
+                <Input
+                  type="number"
+                  value={metrics.years_experience}
+                  onChange={e => setMetrics(prev => prev ? { ...prev, years_experience: parseInt(e.target.value) || 0 } : prev)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label>{language === 'es' ? 'Paises activos' : 'Active countries'}</Label>
+                <Input
+                  type="number"
+                  value={metrics.active_countries}
+                  onChange={e => setMetrics(prev => prev ? { ...prev, active_countries: parseInt(e.target.value) || 0 } : prev)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label>{language === 'es' ? 'Visitas totales' : 'Total visits'}</Label>
+                <Input
+                  type="number"
+                  value={metrics.visits_total}
+                  disabled
+                  className="mt-1 bg-muted"
+                />
+                <p className="text-xs text-foreground/50 mt-1">
+                  {language === 'es' ? 'Se actualiza automaticamente' : 'Updates automatically'}
+                </p>
+              </div>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+
+      {/* Save buttons for mobile */}
+      <div className="flex flex-col gap-2">
+        <Button onClick={handleSaveSettings} disabled={loading} className="w-full">
+          <Save className="mr-2 h-4 w-4" />
+          {loading 
+            ? (language === 'es' ? 'Guardando...' : 'Saving...') 
+            : (language === 'es' ? 'Guardar Contacto y Redes' : 'Save Contact & Social')
+          }
+        </Button>
+        <Button onClick={handleSaveMetrics} disabled={loading} variant="outline" className="w-full">
+          <Save className="mr-2 h-4 w-4" />
+          {loading 
+            ? (language === 'es' ? 'Guardando...' : 'Saving...') 
+            : (language === 'es' ? 'Guardar Metricas' : 'Save Metrics')
+          }
+        </Button>
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">{t.admin.settings}</h1>
+          <p className="text-foreground/70">{t.admin.settingsDesc}</p>
+        </div>
+        {savedMessage && (
+          <Badge variant="secondary" className="gap-1 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+            <Check className="h-3 w-3" />
+            {savedMessage}
+          </Badge>
+        )}
+      </div>
+
+      {/* Error Message */}
+      {error && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
+          {error}
+        </div>
+      )}
+
+      <DesktopLayout />
+      <MobileLayout />
     </div>
   )
 }

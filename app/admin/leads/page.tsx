@@ -30,7 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Phone, Mail, MapPin, Trash2, Eye, Briefcase } from 'lucide-react'
+import { Phone, Mail, MapPin, Trash2, Eye, Briefcase, Calendar } from 'lucide-react'
 import type { Lead, LeadStatus } from '@/lib/types'
 import { categoryLabels } from '@/lib/types'
 
@@ -40,6 +40,7 @@ export default function AdminLeadsPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [viewLead, setViewLead] = useState<Lead | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchLeads()
@@ -47,15 +48,17 @@ export default function AdminLeadsPage() {
 
   const fetchLeads = async () => {
     setLoading(true)
+    setError(null)
     try {
       const res = await fetch('/api/leads')
+      if (!res.ok) throw new Error('Failed to fetch leads')
       const data = await res.json()
-      // Sort by date descending
       setLeads(data.sort((a: Lead, b: Lead) => 
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       ))
-    } catch (error) {
-      console.error('Error fetching leads:', error)
+    } catch (err) {
+      setError(language === 'es' ? 'Error al cargar leads' : 'Error loading leads')
+      console.error('Error fetching leads:', err)
     } finally {
       setLoading(false)
     }
@@ -63,24 +66,26 @@ export default function AdminLeadsPage() {
 
   const handleStatusChange = async (id: string, status: LeadStatus) => {
     try {
-      await fetch(`/api/leads/${id}`, {
+      const res = await fetch(`/api/leads/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       })
+      if (!res.ok) throw new Error('Failed to update lead')
       await fetchLeads()
-    } catch (error) {
-      console.error('Error updating lead:', error)
+    } catch (err) {
+      console.error('Error updating lead:', err)
     }
   }
 
   const handleDelete = async () => {
     if (!deleteId) return
     try {
-      await fetch(`/api/leads/${deleteId}`, { method: 'DELETE' })
+      const res = await fetch(`/api/leads/${deleteId}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Failed to delete lead')
       await fetchLeads()
-    } catch (error) {
-      console.error('Error deleting lead:', error)
+    } catch (err) {
+      console.error('Error deleting lead:', err)
     } finally {
       setDeleteId(null)
     }
@@ -89,11 +94,11 @@ export default function AdminLeadsPage() {
   const getStatusColor = (status: LeadStatus) => {
     switch (status) {
       case 'nuevo':
-        return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
       case 'leido':
-        return 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
       case 'cerrado':
-        return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+        return 'bg-foreground/10 text-foreground/70'
       default:
         return ''
     }
@@ -101,7 +106,7 @@ export default function AdminLeadsPage() {
 
   const getTypeLabel = (type: Lead['lead_type']) => {
     if (type === 'cotizacion') {
-      return language === 'es' ? 'Cotización' : 'Quote'
+      return language === 'es' ? 'Cotizacion' : 'Quote'
     }
     return language === 'es' ? 'Contacto' : 'Contact'
   }
@@ -117,6 +122,14 @@ export default function AdminLeadsPage() {
     })
   }
 
+  const formatDateShort = (dateString: string) => {
+    const date = new Date(dateString)
+    return date.toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', {
+      month: 'short',
+      day: 'numeric',
+    })
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -125,7 +138,14 @@ export default function AdminLeadsPage() {
         <p className="text-foreground/70">{t.admin.leadsDesc}</p>
       </div>
 
-      {/* Leads Table */}
+      {/* Error Message */}
+      {error && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
+          {error}
+        </div>
+      )}
+
+      {/* Loading State */}
       {loading ? (
         <Card className="border-border">
           <CardContent className="py-12 text-center">
@@ -139,96 +159,171 @@ export default function AdminLeadsPage() {
           </CardContent>
         </Card>
       ) : (
-        <Card className="border-border">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{language === 'es' ? 'Fecha/Hora' : 'Date/Time'}</TableHead>
-                  <TableHead>{language === 'es' ? 'Tipo' : 'Type'}</TableHead>
-                  <TableHead>{language === 'es' ? 'Nombre' : 'Name'}</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>{language === 'es' ? 'Servicio' : 'Service'}</TableHead>
-                  <TableHead>{language === 'es' ? 'Estado' : 'Status'}</TableHead>
-                  <TableHead className="text-right">{t.admin.actions}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {leads.map(lead => (
-                  <TableRow key={lead.id}>
-                    <TableCell className="whitespace-nowrap text-sm text-foreground/70">
-                      {formatDate(lead.createdAt)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={lead.lead_type === 'cotizacion' ? 'default' : 'secondary'}>
-                        {getTypeLabel(lead.lead_type)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-medium">{lead.name}</TableCell>
-                    <TableCell className="text-sm text-foreground/70">{lead.email}</TableCell>
-                    <TableCell>
-                      {lead.service ? (
-                        <span className="text-sm">
-                          {categoryLabels[lead.service]?.[language] || lead.service}
-                        </span>
-                      ) : (
-                        <span className="text-sm text-foreground/40">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={lead.status}
-                        onValueChange={(value: LeadStatus) => handleStatusChange(lead.id, value)}
-                      >
-                        <SelectTrigger className={`w-28 h-8 text-xs ${getStatusColor(lead.status)}`}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="nuevo">
-                            {language === 'es' ? 'Nuevo' : 'New'}
-                          </SelectItem>
-                          <SelectItem value="leido">
-                            {language === 'es' ? 'Leído' : 'Read'}
-                          </SelectItem>
-                          <SelectItem value="cerrado">
-                            {language === 'es' ? 'Cerrado' : 'Closed'}
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8"
-                          onClick={() => setViewLead(lead)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8"
-                          onClick={() => setDeleteId(lead.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
+        <>
+          {/* Desktop Table */}
+          <Card className="hidden border-border lg:block">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{language === 'es' ? 'Fecha' : 'Date'}</TableHead>
+                    <TableHead>{language === 'es' ? 'Tipo' : 'Type'}</TableHead>
+                    <TableHead>{language === 'es' ? 'Nombre' : 'Name'}</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>{language === 'es' ? 'Servicio' : 'Service'}</TableHead>
+                    <TableHead>{language === 'es' ? 'Estado' : 'Status'}</TableHead>
+                    <TableHead className="text-right">{t.admin.actions}</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {leads.map(lead => (
+                    <TableRow key={lead.id}>
+                      <TableCell className="whitespace-nowrap text-sm text-foreground/70">
+                        {formatDate(lead.createdAt)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={lead.lead_type === 'cotizacion' ? 'default' : 'secondary'}>
+                          {getTypeLabel(lead.lead_type)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-medium">{lead.name}</TableCell>
+                      <TableCell className="text-sm text-foreground/70">{lead.email}</TableCell>
+                      <TableCell>
+                        {lead.service ? (
+                          <span className="text-sm">
+                            {categoryLabels[lead.service]?.[language] || lead.service}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-foreground/40">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          value={lead.status}
+                          onValueChange={(value: LeadStatus) => handleStatusChange(lead.id, value)}
+                        >
+                          <SelectTrigger className={`w-28 h-8 text-xs ${getStatusColor(lead.status)}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="nuevo">
+                              {language === 'es' ? 'Nuevo' : 'New'}
+                            </SelectItem>
+                            <SelectItem value="leido">
+                              {language === 'es' ? 'Leido' : 'Read'}
+                            </SelectItem>
+                            <SelectItem value="cerrado">
+                              {language === 'es' ? 'Cerrado' : 'Closed'}
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8"
+                            onClick={() => setViewLead(lead)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8"
+                            onClick={() => setDeleteId(lead.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </Card>
+
+          {/* Mobile Cards */}
+          <div className="space-y-4 lg:hidden">
+            {leads.map(lead => (
+              <Card key={lead.id} className="border-border">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-medium">{lead.name}</h3>
+                        <Badge variant={lead.lead_type === 'cotizacion' ? 'default' : 'secondary'} className="text-xs">
+                          {getTypeLabel(lead.lead_type)}
+                        </Badge>
+                      </div>
+                      <p className="mt-1 text-sm text-foreground/60">{lead.email}</p>
+                      {lead.service && (
+                        <p className="mt-1 text-sm text-foreground/50">
+                          {categoryLabels[lead.service]?.[language] || lead.service}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-foreground/50 shrink-0">
+                      <Calendar className="h-3 w-3" />
+                      {formatDateShort(lead.createdAt)}
+                    </div>
+                  </div>
+                  
+                  <div className="mt-4 flex items-center justify-between gap-2 flex-wrap">
+                    <Select
+                      value={lead.status}
+                      onValueChange={(value: LeadStatus) => handleStatusChange(lead.id, value)}
+                    >
+                      <SelectTrigger className={`w-28 h-9 text-xs ${getStatusColor(lead.status)}`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="nuevo">
+                          {language === 'es' ? 'Nuevo' : 'New'}
+                        </SelectItem>
+                        <SelectItem value="leido">
+                          {language === 'es' ? 'Leido' : 'Read'}
+                        </SelectItem>
+                        <SelectItem value="cerrado">
+                          {language === 'es' ? 'Cerrado' : 'Closed'}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="h-9 min-w-[44px]"
+                        onClick={() => setViewLead(lead)}
+                      >
+                        <Eye className="mr-1 h-3 w-3" />
+                        {language === 'es' ? 'Ver' : 'View'}
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-9 w-9"
+                        onClick={() => setDeleteId(lead.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
-        </Card>
+        </>
       )}
 
       {/* View Lead Dialog */}
       <Dialog open={!!viewLead} onOpenChange={() => setViewLead(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+            <DialogTitle className="flex items-center gap-2 flex-wrap">
               {viewLead?.name}
               <Badge variant={viewLead?.lead_type === 'cotizacion' ? 'default' : 'secondary'}>
                 {viewLead && getTypeLabel(viewLead.lead_type)}
@@ -239,14 +334,14 @@ export default function AdminLeadsPage() {
             <div className="space-y-4">
               <div className="grid gap-3 text-sm">
                 <div className="flex items-center gap-2 text-foreground/70">
-                  <Mail className="h-4 w-4" />
-                  <a href={`mailto:${viewLead.email}`} className="hover:underline">
+                  <Mail className="h-4 w-4 shrink-0" />
+                  <a href={`mailto:${viewLead.email}`} className="hover:underline break-all">
                     {viewLead.email}
                   </a>
                 </div>
                 {viewLead.phone && (
                   <div className="flex items-center gap-2 text-foreground/70">
-                    <Phone className="h-4 w-4" />
+                    <Phone className="h-4 w-4 shrink-0" />
                     <a href={`tel:${viewLead.phone}`} className="hover:underline">
                       {viewLead.phone}
                     </a>
@@ -254,20 +349,20 @@ export default function AdminLeadsPage() {
                 )}
                 {viewLead.city && (
                   <div className="flex items-center gap-2 text-foreground/70">
-                    <MapPin className="h-4 w-4" />
+                    <MapPin className="h-4 w-4 shrink-0" />
                     {viewLead.city}
                   </div>
                 )}
                 {viewLead.business_type && (
                   <div className="flex items-center gap-2 text-foreground/70">
-                    <Briefcase className="h-4 w-4" />
+                    <Briefcase className="h-4 w-4 shrink-0" />
                     {viewLead.business_type}
                   </div>
                 )}
               </div>
 
               {viewLead.service && (
-                <div className="rounded-lg bg-muted p-3">
+                <div className="rounded-2xl bg-muted p-3">
                   <span className="text-xs font-medium text-foreground/50">
                     {language === 'es' ? 'Servicio' : 'Service'}
                   </span>
@@ -277,7 +372,7 @@ export default function AdminLeadsPage() {
                 </div>
               )}
 
-              <div className="rounded-lg bg-muted p-3">
+              <div className="rounded-2xl bg-muted p-3">
                 <span className="text-xs font-medium text-foreground/50">
                   {language === 'es' ? 'Mensaje' : 'Message'}
                 </span>
@@ -289,7 +384,7 @@ export default function AdminLeadsPage() {
                   {formatDate(viewLead.createdAt)}
                 </span>
                 <span>
-                  {viewLead.lang === 'es' ? 'Español' : 'English'}
+                  {viewLead.lang === 'es' ? 'Espanol' : 'English'}
                 </span>
               </div>
             </div>
@@ -304,9 +399,9 @@ export default function AdminLeadsPage() {
             <AlertDialogTitle>{t.admin.confirm}</AlertDialogTitle>
             <AlertDialogDescription>{t.admin.deleteConfirm}</AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t.admin.cancel}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete}>{t.admin.delete}</AlertDialogAction>
+          <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
+            <AlertDialogCancel className="w-full sm:w-auto">{t.admin.cancel}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="w-full sm:w-auto">{t.admin.delete}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

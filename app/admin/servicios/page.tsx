@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Dialog,
@@ -52,57 +53,70 @@ export default function AdminServiciosPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [editingService, setEditingService] = useState<typeof emptyService & { id?: string }>(emptyService)
   const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchServices()
   }, [])
 
   const fetchServices = async () => {
-    const res = await fetch('/api/services?all=true')
-    const data = await res.json()
-    setServices(data)
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/services?all=true')
+      if (!res.ok) throw new Error('Failed to fetch services')
+      const data = await res.json()
+      setServices(data)
+    } catch (err) {
+      setError(language === 'es' ? 'Error al cargar servicios' : 'Error loading services')
+      console.error('Error fetching services:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleSave = async () => {
-    setLoading(true)
+    setSaving(true)
+    setError(null)
     try {
-      // Prepare data - use customCategory if category is 'otros'
       const serviceData = {
         ...editingService,
-        // Store custom category name in the slug if it's "otros"
         slug: editingService.slug || editingService.title_es.toLowerCase().replace(/\s+/g, '-'),
       }
 
-      if (editingService.id) {
-        await fetch(`/api/services/${editingService.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(serviceData),
-        })
-      } else {
-        await fetch('/api/services', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(serviceData),
-        })
-      }
+      const url = editingService.id ? `/api/services/${editingService.id}` : '/api/services'
+      const method = editingService.id ? 'PUT' : 'POST'
+      
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(serviceData),
+      })
+
+      if (!res.ok) throw new Error('Failed to save service')
+      
+      // Refetch from server (source of truth)
       await fetchServices()
       setDialogOpen(false)
       setEditingService(emptyService)
-    } catch (error) {
-      console.error('Error saving service:', error)
+    } catch (err) {
+      setError(language === 'es' ? 'Error al guardar servicio' : 'Error saving service')
+      console.error('Error saving service:', err)
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
   }
 
   const handleDelete = async () => {
     if (!deleteId) return
     try {
-      await fetch(`/api/services/${deleteId}`, { method: 'DELETE' })
+      const res = await fetch(`/api/services/${deleteId}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Failed to delete service')
       await fetchServices()
-    } catch (error) {
-      console.error('Error deleting service:', error)
+    } catch (err) {
+      setError(language === 'es' ? 'Error al eliminar servicio' : 'Error deleting service')
+      console.error('Error deleting service:', err)
     } finally {
       setDeleteId(null)
     }
@@ -170,14 +184,14 @@ export default function AdminServiciosPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">{t.admin.services}</h1>
           <p className="text-foreground/70">{t.admin.servicesDesc}</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={openNew}>
+            <Button onClick={openNew} className="w-full sm:w-auto">
               <Plus className="mr-2 h-4 w-4" />
               {t.admin.newService}
             </Button>
@@ -220,9 +234,8 @@ export default function AdminServiciosPage() {
                 </div>
               </div>
 
-              {/* Custom Category Input for "Otros" */}
               {editingService.category === 'otros' && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950">
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950">
                   <Label className="text-amber-800 dark:text-amber-200">
                     Nombre personalizado de categoria
                   </Label>
@@ -236,9 +249,6 @@ export default function AdminServiciosPage() {
                     placeholder="Ej: Consultoria SEO, Marketing Digital..."
                     className="mt-2 border-amber-300 dark:border-amber-700"
                   />
-                  <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
-                    Este nombre aparecera como etiqueta en la pagina de servicios
-                  </p>
                 </div>
               )}
 
@@ -293,7 +303,6 @@ export default function AdminServiciosPage() {
                 </div>
               </div>
 
-              {/* Bullets ES */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <Label>Caracteristicas (ES)</Label>
@@ -324,7 +333,6 @@ export default function AdminServiciosPage() {
                 </div>
               </div>
 
-              {/* Bullets EN */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <Label>Features (EN)</Label>
@@ -355,16 +363,10 @@ export default function AdminServiciosPage() {
                 </div>
               </div>
 
-              {/* Hero Images - 4 images for carousel */}
-              <div className="rounded-lg border border-border bg-muted/30 p-4">
+              <div className="rounded-2xl border border-border bg-muted/30 p-4">
                 <Label className="mb-3 block">
-                  {language === 'es' ? 'Imágenes del Hero (4 imágenes para el carrusel)' : 'Hero Images (4 images for carousel)'}
+                  {language === 'es' ? 'Imagenes del Hero (4 imagenes para el carrusel)' : 'Hero Images (4 images for carousel)'}
                 </Label>
-                <p className="mb-3 text-xs text-foreground/60">
-                  {language === 'es' 
-                    ? 'Estas imágenes aparecerán en el grid 2x2 del hero cuando este servicio esté activo en el carrusel.' 
-                    : 'These images will appear in the 2x2 grid of the hero when this service is active in the carousel.'}
-                </p>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {editingService.hero_images.map((url, index) => (
                     <div key={index}>
@@ -403,12 +405,12 @@ export default function AdminServiciosPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                <Button variant="outline" onClick={() => setDialogOpen(false)} className="w-full sm:w-auto">
                   {t.admin.cancel}
                 </Button>
-                <Button onClick={handleSave} disabled={loading}>
-                  {loading ? 'Guardando...' : t.admin.save}
+                <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
+                  {saving ? 'Guardando...' : t.admin.save}
                 </Button>
               </div>
             </div>
@@ -416,49 +418,100 @@ export default function AdminServiciosPage() {
         </Dialog>
       </div>
 
-      {/* Services Table */}
-      <Card className="border-border">
-        <CardHeader className="border-b border-border">
-          <div className="grid grid-cols-12 gap-4 text-sm font-medium text-foreground/60">
-            <div className="col-span-5">{t.admin.service}</div>
-            <div className="col-span-2 hidden sm:block">{t.projects.category}</div>
-            <div className="col-span-2">{t.admin.status}</div>
-            <div className="col-span-3 text-right">{t.admin.actions}</div>
+      {/* Error Message */}
+      {error && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
+          {error}
+        </div>
+      )}
+
+      {/* Loading State */}
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-foreground/20 border-t-foreground" />
+        </div>
+      ) : (
+        <>
+          {/* Desktop Table */}
+          <Card className="hidden border-border md:block">
+            <CardHeader className="border-b border-border">
+              <div className="grid grid-cols-12 gap-4 text-sm font-medium text-foreground/60">
+                <div className="col-span-5">{t.admin.service}</div>
+                <div className="col-span-2">{t.projects.category}</div>
+                <div className="col-span-2">{t.admin.status}</div>
+                <div className="col-span-3 text-right">{t.admin.actions}</div>
+              </div>
+            </CardHeader>
+            <CardContent className="divide-y divide-border p-0">
+              {services.map(service => (
+                <div key={service.id} className="grid grid-cols-12 items-center gap-4 p-4">
+                  <div className="col-span-5">
+                    <h3 className="font-medium">
+                      {language === 'es' ? service.title_es : service.title_en}
+                    </h3>
+                    <p className="line-clamp-1 text-sm text-foreground/60">
+                      {language === 'es' ? service.desc_es : service.desc_en}
+                    </p>
+                  </div>
+                  <div className="col-span-2 text-sm text-foreground/70">
+                    {categoryLabels[service.category][language]}
+                  </div>
+                  <div className="col-span-2">
+                    <Badge variant={service.status === 'publish' ? 'default' : 'secondary'}>
+                      {service.status === 'publish' ? t.admin.published : t.admin.draft}
+                    </Badge>
+                  </div>
+                  <div className="col-span-3 flex justify-end gap-2">
+                    <Button variant="ghost" size="icon" onClick={() => openEdit(service)}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => setDeleteId(service.id)}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          {/* Mobile Cards */}
+          <div className="space-y-4 md:hidden">
+            {services.map(service => (
+              <Card key={service.id} className="border-border">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-medium">
+                        {language === 'es' ? service.title_es : service.title_en}
+                      </h3>
+                      <p className="mt-1 line-clamp-2 text-sm text-foreground/60">
+                        {language === 'es' ? service.desc_es : service.desc_en}
+                      </p>
+                    </div>
+                    <Badge variant={service.status === 'publish' ? 'default' : 'secondary'} className="shrink-0">
+                      {service.status === 'publish' ? t.admin.published : t.admin.draft}
+                    </Badge>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className="text-sm text-foreground/50">
+                      {categoryLabels[service.category][language]}
+                    </span>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" className="h-9 min-w-[44px]" onClick={() => openEdit(service)}>
+                        <Pencil className="mr-1 h-3 w-3" />
+                        {t.admin.edit}
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setDeleteId(service.id)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
-        </CardHeader>
-        <CardContent className="divide-y divide-border p-0">
-          {services.map(service => (
-            <div key={service.id} className="grid grid-cols-12 items-center gap-4 p-4">
-              <div className="col-span-5">
-                <h3 className="font-medium">
-                  {language === 'es' ? service.title_es : service.title_en}
-                </h3>
-                <p className="line-clamp-1 text-sm text-foreground/60">
-                  {language === 'es' ? service.desc_es : service.desc_en}
-                </p>
-              </div>
-              <div className="col-span-2 hidden text-sm text-foreground/70 sm:block">
-                {categoryLabels[service.category][language]}
-              </div>
-              <div className="col-span-2">
-                <span className={`text-sm font-medium ${
-                  service.status === 'publish' ? 'text-green-600' : 'text-foreground/50'
-                }`}>
-                  {service.status === 'publish' ? t.admin.published : t.admin.draft}
-                </span>
-              </div>
-              <div className="col-span-3 flex justify-end gap-2">
-                <Button variant="ghost" size="icon" onClick={() => openEdit(service)}>
-                  <Pencil className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="icon" onClick={() => setDeleteId(service.id)}>
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+        </>
+      )}
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
@@ -467,9 +520,9 @@ export default function AdminServiciosPage() {
             <AlertDialogTitle>{t.admin.confirm}</AlertDialogTitle>
             <AlertDialogDescription>{t.admin.deleteConfirm}</AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t.admin.cancel}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete}>{t.admin.delete}</AlertDialogAction>
+          <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
+            <AlertDialogCancel className="w-full sm:w-auto">{t.admin.cancel}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="w-full sm:w-auto">{t.admin.delete}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
