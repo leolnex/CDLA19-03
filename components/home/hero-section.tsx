@@ -211,6 +211,8 @@ export function HeroSection() {
                   src={src}
                   alt={`${language === 'es' ? currentService?.title_es : currentService?.title_en} - ${language === 'es' ? 'Imagen' : 'Image'} ${index + 1}`}
                   fill
+                  priority={index === 0}
+                  loading={index === 0 ? 'eager' : 'lazy'}
                   className="object-cover transition-transform duration-300 hover:scale-105"
                   sizes="(max-width: 768px) 50vw, 25vw"
                 />
