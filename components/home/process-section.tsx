@@ -38,7 +38,7 @@ export function ProcessSection() {
           </div>
           <div className="flex gap-3">
             <Button asChild>
-              <Link href="/cotizar">{t.nav.quote}</Link>
+              <Link href="/contacto">{t.nav.contact}</Link>
             </Button>
             <Button variant="outline" asChild>
               <Link href="/proyectos">{t.home.viewPortfolio}</Link>

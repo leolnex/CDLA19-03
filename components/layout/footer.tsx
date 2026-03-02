@@ -8,7 +8,7 @@ import { Facebook, Instagram, Twitter, MessageCircle, Copy, Check } from 'lucide
 import type { Settings } from '@/lib/types'
 
 export function Footer() {
-  const { t } = useLanguage()
+  const { language, t } = useLanguage()
   const [copiedEmail, setCopiedEmail] = useState(false)
   const [copiedPhone, setCopiedPhone] = useState(false)
   const [settings, setSettings] = useState<Settings | null>(null)
@@ -107,6 +107,9 @@ export function Footer() {
               </Link>
               <Link href="/proyectos" className="text-sm text-foreground/70 hover:text-foreground">
                 {t.nav.projects}
+              </Link>
+              <Link href="/acerca-de" className="text-sm text-foreground/70 hover:text-foreground">
+                {language === 'es' ? 'Acerca de' : 'About'}
               </Link>
               <Link href="/contacto" className="text-sm text-foreground/70 hover:text-foreground">
                 {t.nav.contact}

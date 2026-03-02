@@ -1,13 +1,12 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useLanguage } from '@/components/providers/language-provider'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import type { Project, Service } from '@/lib/types'
+import type { Service } from '@/lib/types'
 import { categoryLabels } from '@/lib/types'
 
 const fallbackImages = [
@@ -20,19 +19,19 @@ const fallbackImages = [
 export function HeroSection() {
   const { language, t } = useLanguage()
   const [services, setServices] = useState<Service[]>([])
-  const [projects, setProjects] = useState<Project[]>([])
   const [currentSlide, setCurrentSlide] = useState(0)
   const [isAutoPlaying, setIsAutoPlaying] = useState(true)
+  const [isPaused, setIsPaused] = useState(false)
+  const carouselRef = useRef<HTMLDivElement>(null)
 
-  // Fetch services and projects from database
+  // Fetch services from database
   useEffect(() => {
-    Promise.all([
-      fetch('/api/services').then(res => res.json()),
-      fetch('/api/projects?featured=true').then(res => res.json())
-    ]).then(([servicesData, projectsData]) => {
-      setServices(servicesData.filter((s: Service) => s.status === 'publish'))
-      setProjects(projectsData.slice(0, 4))
-    }).catch(console.error)
+    fetch('/api/services')
+      .then(res => res.json())
+      .then(data => {
+        setServices(data.filter((s: Service) => s.status === 'publish'))
+      })
+      .catch(console.error)
   }, [])
 
   // Auto-advance carousel
@@ -49,142 +48,172 @@ export function HeroSection() {
   }, [services.length])
 
   useEffect(() => {
-    if (!isAutoPlaying || services.length === 0) return
-    const interval = setInterval(nextSlide, 4000)
+    if (!isAutoPlaying || isPaused || services.length === 0) return
+    const interval = setInterval(nextSlide, 5000)
     return () => clearInterval(interval)
-  }, [isAutoPlaying, nextSlide, services.length])
+  }, [isAutoPlaying, isPaused, nextSlide, services.length])
 
-  // Get hero images from featured projects or fallback
-  const heroImages = projects.length > 0 
-    ? projects.map(p => p.cover_image)
-    : fallbackImages
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!carouselRef.current?.contains(document.activeElement)) return
+      if (e.key === 'ArrowLeft') {
+        prevSlide()
+        setIsPaused(true)
+      } else if (e.key === 'ArrowRight') {
+        nextSlide()
+        setIsPaused(true)
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [nextSlide, prevSlide])
 
   const currentService = services[currentSlide]
+  
+  // Get hero images from service or use fallback
+  const heroImages = currentService?.hero_images?.length === 4 
+    ? currentService.hero_images 
+    : fallbackImages
+
+  if (services.length === 0) {
+    return (
+      <section className="py-16 md:py-24">
+        <div className="mx-auto max-w-[1280px] px-4 md:px-6 lg:px-8">
+          <div className="flex items-center justify-center py-20">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-foreground/20 border-t-foreground" />
+          </div>
+        </div>
+      </section>
+    )
+  }
 
   return (
-    <section className="py-16 md:py-24">
+    <section 
+      className="py-16 md:py-24"
+      ref={carouselRef}
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      onFocus={() => setIsPaused(true)}
+      onBlur={() => setIsPaused(false)}
+      role="region"
+      aria-label={language === 'es' ? 'Carrusel de servicios' : 'Services carousel'}
+      aria-roledescription="carousel"
+    >
       <div className="mx-auto max-w-[1280px] px-4 md:px-6 lg:px-8">
         <div className="grid items-center gap-12 lg:grid-cols-2">
-          {/* Text Content */}
-          <div className="space-y-6">
+          {/* Text Content - Left Column */}
+          <div 
+            className="space-y-6"
+            role="group"
+            aria-roledescription="slide"
+            aria-label={`${currentSlide + 1} ${language === 'es' ? 'de' : 'of'} ${services.length}`}
+          >
+            {/* Service Category Badge */}
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-foreground px-3 py-1 text-xs font-medium text-background">
+                {currentService?.custom_category || categoryLabels[currentService?.category || 'website'][language]}
+              </span>
+              <span className="text-sm text-foreground/50">
+                {currentSlide + 1} / {services.length}
+              </span>
+            </div>
+
+            {/* Service Title */}
             <h1 className="text-4xl font-bold leading-tight tracking-tight md:text-5xl lg:text-6xl">
-              {t.home.heroTitle}{' '}
-              <span className="text-foreground/60">{t.home.heroHighlight}</span>
-              <br />
-              <span className="text-foreground/60">{t.home.heroSubtitle}</span>
+              {language === 'es' ? currentService?.title_es : currentService?.title_en}
             </h1>
+
+            {/* Service Description */}
             <p className="max-w-lg text-lg text-foreground/70">
-              {t.home.heroDesc}
+              {language === 'es' ? currentService?.desc_es : currentService?.desc_en}
             </p>
+
+            {/* CTA Buttons */}
             <div className="flex flex-wrap gap-3">
               <Button asChild size="lg">
-                <Link href="/proyectos">{t.home.viewProjects}</Link>
+                <Link href={`/servicios?categoria=${currentService?.category}`}>
+                  {language === 'es' ? 'Ver servicio' : 'View service'}
+                </Link>
               </Button>
               <Button variant="outline" asChild size="lg">
-                <Link href="/servicios">{t.home.viewServices}</Link>
+                <Link href={`/proyectos?categoria=${currentService?.category}`}>
+                  {language === 'es' ? 'Ver proyectos' : 'View projects'}
+                </Link>
               </Button>
               <Button variant="ghost" asChild size="lg">
-                <Link href="/contacto">{t.nav.contact}</Link>
+                <Link href={`/contacto?servicio=${currentService?.category}`}>
+                  {language === 'es' ? 'Contactar' : 'Contact'}
+                </Link>
               </Button>
             </div>
 
-            {/* Services Carousel */}
-            {services.length > 0 && (
-              <div 
-                className="mt-8 rounded-xl border border-border bg-card p-4"
-                onMouseEnter={() => setIsAutoPlaying(false)}
-                onMouseLeave={() => setIsAutoPlaying(true)}
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-medium text-foreground/50 uppercase tracking-wider">
-                    {language === 'es' ? 'Nuestros servicios' : 'Our services'}
-                  </span>
-                  <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={prevSlide}
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={nextSlide}
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-                
-                {currentService && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className="text-xs">
-                        {categoryLabels[currentService.category][language]}
-                      </Badge>
-                      <span className="text-xs text-foreground/40">
-                        {currentSlide + 1} / {services.length}
-                      </span>
-                    </div>
-                    <h3 className="font-semibold">
-                      {language === 'es' ? currentService.title_es : currentService.title_en}
-                    </h3>
-                    <p className="text-sm text-foreground/70 line-clamp-2">
-                      {language === 'es' ? currentService.desc_es : currentService.desc_en}
-                    </p>
-                    <Button variant="link" asChild className="p-0 h-auto">
-                      <Link href={`/servicios#${currentService.slug}`}>
-                        {language === 'es' ? 'Ver mas' : 'Learn more'} →
-                      </Link>
-                    </Button>
-                  </div>
-                )}
-
-                {/* Carousel Dots */}
-                <div className="flex justify-center gap-1 mt-4">
-                  {services.map((_, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setCurrentSlide(index)}
-                      className={`h-1.5 rounded-full transition-all ${
-                        index === currentSlide 
-                          ? 'w-6 bg-foreground' 
-                          : 'w-1.5 bg-foreground/20'
-                      }`}
-                    />
-                  ))}
-                </div>
+            {/* Carousel Controls */}
+            <div className="flex items-center gap-4 pt-4">
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10"
+                  onClick={() => {
+                    prevSlide()
+                    setIsPaused(true)
+                  }}
+                  aria-label={language === 'es' ? 'Anterior' : 'Previous'}
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10"
+                  onClick={() => {
+                    nextSlide()
+                    setIsPaused(true)
+                  }}
+                  aria-label={language === 'es' ? 'Siguiente' : 'Next'}
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </Button>
               </div>
-            )}
+
+              {/* Dots */}
+              <div className="flex gap-2" role="tablist" aria-label={language === 'es' ? 'Indicadores del carrusel' : 'Carousel indicators'}>
+                {services.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => {
+                      setCurrentSlide(index)
+                      setIsPaused(true)
+                    }}
+                    role="tab"
+                    aria-selected={index === currentSlide}
+                    aria-label={`${language === 'es' ? 'Ir a slide' : 'Go to slide'} ${index + 1}`}
+                    className={`h-2 rounded-full transition-all ${
+                      index === currentSlide 
+                        ? 'w-8 bg-foreground' 
+                        : 'w-2 bg-foreground/20 hover:bg-foreground/40'
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
 
-          {/* Image Grid - Dynamic from featured projects */}
+          {/* Image Grid - Right Column (2x2) */}
           <div className="grid grid-cols-2 gap-4">
             {heroImages.map((src, index) => (
               <div
-                key={index}
+                key={`${currentSlide}-${index}`}
                 className="relative aspect-[4/3] overflow-hidden rounded-2xl"
               >
                 <Image
                   src={src}
-                  alt={projects[index] 
-                    ? (language === 'es' ? projects[index].title_es : projects[index].title_en)
-                    : `Project ${index + 1}`
-                  }
+                  alt={`${language === 'es' ? currentService?.title_es : currentService?.title_en} - ${language === 'es' ? 'Imagen' : 'Image'} ${index + 1}`}
                   fill
                   className="object-cover transition-transform duration-300 hover:scale-105"
                   sizes="(max-width: 768px) 50vw, 25vw"
                 />
-                {projects[index]?.featured && (
-                  <div className="absolute top-2 right-2">
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-400 text-xs">
-                      ★
-                    </span>
-                  </div>
-                )}
               </div>
             ))}
           </div>

@@ -155,12 +155,12 @@ export async function getLeads(): Promise<Lead[]> {
   return data.leads.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 }
 
-export async function createLead(lead: Omit<Lead, 'id' | 'createdAt' | 'status'>): Promise<Lead> {
+export async function createLead(lead: Omit<Lead, 'id' | 'createdAt'>): Promise<Lead> {
   const data = await getData()
   const newLead: Lead = {
     ...lead,
     id: Date.now().toString(),
-    status: 'nuevo',
+    status: lead.status || 'nuevo',
     createdAt: new Date().toISOString()
   }
   data.leads.push(newLead)
@@ -173,7 +173,7 @@ export async function updateLeadStatus(id: string, status: Lead['status']): Prom
   const index = data.leads.findIndex(l => l.id === id)
   if (index === -1) return null
   
-  data.leads[index].status = status
+  data.leads[index].status = status as 'nuevo' | 'leido' | 'cerrado'
   await saveData(data)
   return data.leads[index]
 }

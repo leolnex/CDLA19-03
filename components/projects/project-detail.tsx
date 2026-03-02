@@ -51,7 +51,7 @@ export function ProjectDetail({ project }: ProjectDetailProps) {
             <p className="mt-2 max-w-xl text-white/80">{desc}</p>
             <div className="mt-4 flex gap-3">
               <Button variant="secondary" asChild>
-                <Link href="/cotizar">{t.projects.requestQuote}</Link>
+                <Link href={`/contacto?servicio=${project.category}`}>{t.projects.requestQuote}</Link>
               </Button>
               <Button variant="outline" className="border-white/30 text-white hover:bg-white/10" asChild>
                 <Link href="/proyectos">{t.projects.viewMore}</Link>

@@ -41,6 +41,7 @@ const emptyService = {
   ideal_en: '',
   bullets_es: [''],
   bullets_en: [''],
+  hero_images: ['', '', '', ''],
   status: 'publish' as const,
 }
 
@@ -112,7 +113,7 @@ export default function AdminServiciosPage() {
       id: service.id,
       slug: service.slug,
       category: service.category,
-      customCategory: '',
+      customCategory: service.custom_category || '',
       title_es: service.title_es,
       title_en: service.title_en,
       desc_es: service.desc_es,
@@ -121,6 +122,7 @@ export default function AdminServiciosPage() {
       ideal_en: service.ideal_en,
       bullets_es: service.bullets_es,
       bullets_en: service.bullets_en,
+      hero_images: service.hero_images?.length === 4 ? service.hero_images : ['', '', '', ''],
       status: service.status,
     })
     setDialogOpen(true)
@@ -348,6 +350,37 @@ export default function AdminServiciosPage() {
                           <X className="h-4 w-4" />
                         </Button>
                       )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Hero Images - 4 images for carousel */}
+              <div className="rounded-lg border border-border bg-muted/30 p-4">
+                <Label className="mb-3 block">
+                  {language === 'es' ? 'Imágenes del Hero (4 imágenes para el carrusel)' : 'Hero Images (4 images for carousel)'}
+                </Label>
+                <p className="mb-3 text-xs text-foreground/60">
+                  {language === 'es' 
+                    ? 'Estas imágenes aparecerán en el grid 2x2 del hero cuando este servicio esté activo en el carrusel.' 
+                    : 'These images will appear in the 2x2 grid of the hero when this service is active in the carousel.'}
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {editingService.hero_images.map((url, index) => (
+                    <div key={index}>
+                      <Label className="text-xs text-foreground/60">
+                        {language === 'es' ? `Imagen ${index + 1}` : `Image ${index + 1}`}
+                      </Label>
+                      <Input
+                        value={url}
+                        onChange={e => {
+                          const newImages = [...editingService.hero_images]
+                          newImages[index] = e.target.value
+                          setEditingService(prev => ({ ...prev, hero_images: newImages }))
+                        }}
+                        placeholder="https://..."
+                        className="mt-1"
+                      />
                     </div>
                   ))}
                 </div>

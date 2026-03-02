@@ -52,13 +52,10 @@ export default function ServiciosPage() {
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Button asChild>
-              <Link href="/cotizar">{t.services.quoteNow}</Link>
+              <Link href="/contacto">{t.services.quoteNow}</Link>
             </Button>
             <Button variant="outline" asChild>
               <Link href="/proyectos">{t.home.viewPortfolio}</Link>
-            </Button>
-            <Button variant="ghost" asChild>
-              <Link href="/contacto">{t.nav.contact}</Link>
             </Button>
           </div>
         </div>
@@ -149,7 +146,7 @@ export default function ServiciosPage() {
                 </ul>
                 <div className="flex gap-2 pt-2">
                   <Button size="sm" asChild>
-                    <Link href={`/cotizar?servicio=${service.category}`}>{t.services.quoteNow}</Link>
+                    <Link href={`/contacto?servicio=${service.category}`}>{t.services.quoteNow}</Link>
                   </Button>
                   <Button size="sm" variant="outline" asChild>
                     <Link href={`/proyectos?categoria=${service.category}`}>{t.services.viewExamples}</Link>
@@ -168,7 +165,7 @@ export default function ServiciosPage() {
           </div>
           <div className="flex gap-3">
             <Button asChild>
-              <Link href="/cotizar">{t.services.goToQuote}</Link>
+              <Link href="/contacto">{t.services.goToQuote}</Link>
             </Button>
             <Button variant="outline" asChild>
               <a href="https://wa.me/15709144529" target="_blank" rel="noopener noreferrer">

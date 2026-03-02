@@ -6,6 +6,7 @@ export interface Service {
   id: string
   slug: string
   category: ServiceCategory
+  custom_category?: string // Para categoría "otros"
   title_es: string
   title_en: string
   desc_es: string
@@ -14,6 +15,8 @@ export interface Service {
   ideal_en: string
   bullets_es: string[]
   bullets_en: string[]
+  // Hero images - 4 imágenes para el carrusel del hero
+  hero_images: string[]
   status: 'draft' | 'publish'
   createdAt: string
   updatedAt: string
@@ -37,17 +40,21 @@ export interface Project {
   updatedAt: string
 }
 
+export type LeadType = 'contacto' | 'cotizacion'
+export type LeadStatus = 'nuevo' | 'leido' | 'cerrado'
+
 export interface Lead {
   id: string
-  service: ServiceCategory
-  business_type: string
+  lead_type: LeadType
+  service?: ServiceCategory
+  business_type?: string
   message: string
   name: string
   email: string
   phone?: string
   city?: string
-  status: 'nuevo' | 'contactado' | 'cerrado'
-  language: 'es' | 'en'
+  status: LeadStatus
+  lang: 'es' | 'en'
   source_url: string
   createdAt: string
 }

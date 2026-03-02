@@ -14,6 +14,12 @@ export const initialData: AppData = {
       ideal_en: 'Businesses, startups, independent professionals',
       bullets_es: ['Diseño responsive', 'SEO optimizado', 'Carga rápida'],
       bullets_en: ['Responsive design', 'SEO optimized', 'Fast loading'],
+      hero_images: [
+        'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400&h=300&fit=crop',
+        'https://images.unsplash.com/photo-1547658719-da2b51169166?w=400&h=300&fit=crop',
+        'https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?w=400&h=300&fit=crop',
+        'https://images.unsplash.com/photo-1504639725590-34d0984388bd?w=400&h=300&fit=crop'
+      ],
       status: 'publish',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -30,6 +36,12 @@ export const initialData: AppData = {
       ideal_en: 'Businesses with mobile customer base',
       bullets_es: ['iOS y Android', 'Interfaz intuitiva', 'Notificaciones push'],
       bullets_en: ['iOS and Android', 'Intuitive interface', 'Push notifications'],
+      hero_images: [
+        'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=400&h=300&fit=crop',
+        'https://images.unsplash.com/photo-1551650975-87deedd944c3?w=400&h=300&fit=crop',
+        'https://images.unsplash.com/photo-1522125670776-3c7abb882bc2?w=400&h=300&fit=crop',
+        'https://images.unsplash.com/photo-1596558450255-7c0b7be9d56a?w=400&h=300&fit=crop'
+      ],
       status: 'publish',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -46,6 +58,12 @@ export const initialData: AppData = {
       ideal_en: 'New businesses, rebranding',
       bullets_es: ['Múltiples propuestas', 'Archivos editables', 'Manual de marca'],
       bullets_en: ['Multiple proposals', 'Editable files', 'Brand manual'],
+      hero_images: [
+        'https://images.unsplash.com/photo-1626785774573-4b799315345d?w=400&h=300&fit=crop',
+        'https://images.unsplash.com/photo-1611532736597-de2d4265fba3?w=400&h=300&fit=crop',
+        'https://images.unsplash.com/photo-1558655146-d09347e92766?w=400&h=300&fit=crop',
+        'https://images.unsplash.com/photo-1609921212029-bb5a28e60960?w=400&h=300&fit=crop'
+      ],
       status: 'publish',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -62,6 +80,12 @@ export const initialData: AppData = {
       ideal_en: 'Brands looking for digital presence',
       bullets_es: ['Contenido mensual', 'Diseños profesionales', 'Reportes'],
       bullets_en: ['Monthly content', 'Professional designs', 'Reports'],
+      hero_images: [
+        'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=400&h=300&fit=crop',
+        'https://images.unsplash.com/photo-1562577309-4932fdd64cd1?w=400&h=300&fit=crop',
+        'https://images.unsplash.com/photo-1611162616305-c69b3fa7fbe0?w=400&h=300&fit=crop',
+        'https://images.unsplash.com/photo-1432888498266-38ffec3eaf0a?w=400&h=300&fit=crop'
+      ],
       status: 'publish',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -78,6 +102,12 @@ export const initialData: AppData = {
       ideal_en: 'Professionals, executives, networkers',
       bullets_es: ['Diseño premium', 'Archivos para impresión', 'Variantes'],
       bullets_en: ['Premium design', 'Print-ready files', 'Variants'],
+      hero_images: [
+        'https://images.unsplash.com/photo-1616628188859-7a11abb6fcc9?w=400&h=300&fit=crop',
+        'https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=400&h=300&fit=crop',
+        'https://images.unsplash.com/photo-1572502742566-c068c3bf72e3?w=400&h=300&fit=crop',
+        'https://images.unsplash.com/photo-1586075010923-2dd4570fb338?w=400&h=300&fit=crop'
+      ],
       status: 'publish',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()

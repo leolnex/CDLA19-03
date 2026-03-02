@@ -11,208 +11,249 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog'
-import { Moon, Sun, ChevronDown, Info, FileText, Users } from 'lucide-react'
-import { useState } from 'react'
+import { Moon, Sun, MoreHorizontal, MessageCircle } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 export function Header() {
   const { language, setLanguage, t } = useLanguage()
-  const { theme, setTheme } = useTheme()
-  const [aboutOpen, setAboutOpen] = useState(false)
+  const { theme, setTheme, resolvedTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Close dropdown on ESC
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMoreOpen(false)
+    }
+    document.addEventListener('keydown', handleEsc)
+    return () => document.removeEventListener('keydown', handleEsc)
+  }, [])
+
+  const currentTheme = mounted ? resolvedTheme : 'light'
 
   return (
-    <>
-      <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="mx-auto flex h-16 max-w-[1280px] items-center justify-between px-4 md:px-6 lg:px-8">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-foreground">
-              <span className="text-sm font-bold text-background">C</span>
-            </div>
-            <span className="text-lg font-semibold">CodeDesignLA</span>
-          </Link>
-
-          {/* Navigation - Desktop */}
-          <nav className="hidden items-center gap-6 md:flex">
-            <Link 
-              href="/servicios" 
-              className="text-sm font-medium text-foreground/80 transition-colors hover:text-foreground"
-            >
-              {t.nav.services}
-            </Link>
-            <Link 
-              href="/proyectos" 
-              className="text-sm font-medium text-foreground/80 transition-colors hover:text-foreground"
-            >
-              {t.nav.projects}
-            </Link>
-            <Link 
-              href="/contacto" 
-              className="text-sm font-medium text-foreground/80 transition-colors hover:text-foreground"
-            >
-              {t.nav.contact}
-            </Link>
-          </nav>
-
-          {/* Actions */}
-          <div className="flex items-center gap-2">
-            {/* Cotizar Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button className="hidden sm:inline-flex gap-1">
-                  {t.nav.quote}
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem asChild>
-                  <Link href="/cotizar" className="flex items-center gap-2">
-                    <FileText className="h-4 w-4" />
-                    {language === 'es' ? 'Cotizar proyecto' : 'Quote project'}
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/contacto" className="flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    {t.nav.contact}
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setAboutOpen(true)} className="flex items-center gap-2">
-                  <Info className="h-4 w-4" />
-                  {language === 'es' ? 'Acerca de nosotros' : 'About us'}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            
-            {/* Theme Toggle */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9"
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            >
-              <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-              <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-              <span className="sr-only">Toggle theme</span>
-            </Button>
-
-            {/* Language Toggle */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 gap-1 px-2">
-                  <span className={`text-xs font-medium ${language === 'es' ? 'bg-foreground text-background px-1.5 py-0.5 rounded' : ''}`}>
-                    ES
-                  </span>
-                  <span className={`text-xs font-medium ${language === 'en' ? 'bg-foreground text-background px-1.5 py-0.5 rounded' : ''}`}>
-                    EN
-                  </span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setLanguage('es')}>
-                  Espanol
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setLanguage('en')}>
-                  English
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* Mobile Menu */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild className="md:hidden">
-                <Button variant="ghost" size="icon" className="h-9 w-9">
-                  <svg
-                    className="h-5 w-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 6h16M4 12h16M4 18h16"
-                    />
-                  </svg>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem asChild>
-                  <Link href="/servicios">{t.nav.services}</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/proyectos">{t.nav.projects}</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/contacto">{t.nav.contact}</Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/cotizar">{t.nav.quote}</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setAboutOpen(true)}>
-                  {language === 'es' ? 'Acerca de nosotros' : 'About us'}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="mx-auto flex h-16 max-w-[1280px] items-center justify-between px-4 md:px-6 lg:px-8">
+        {/* Logo */}
+        <Link href="/" className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-foreground">
+            <span className="text-sm font-bold text-background">C</span>
           </div>
-        </div>
-      </header>
+          <span className="text-lg font-semibold">CodeDesignLA</span>
+        </Link>
 
-      {/* About Us Dialog */}
-      <Dialog open={aboutOpen} onOpenChange={setAboutOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-foreground">
-                <span className="text-sm font-bold text-background">C</span>
-              </div>
-              CodeDesignLA
-            </DialogTitle>
-            <DialogDescription className="pt-4 text-left">
-              {language === 'es' ? (
-                <>
-                  <p className="mb-4">
-                    Somos un equipo de disenadores y desarrolladores apasionados por crear 
-                    soluciones digitales que impulsan negocios. Con mas de 5 anos de experiencia, 
-                    hemos ayudado a empresas de toda Latinoamerica a establecer su presencia digital.
-                  </p>
-                  <p className="mb-4">
-                    <strong>Nuestra mision:</strong> Transformar ideas en experiencias digitales 
-                    memorables que conecten con tu audiencia.
-                  </p>
-                  <p>
-                    <strong>Nuestros valores:</strong> Claridad, profesionalismo, y entrega a tiempo.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="mb-4">
-                    We are a team of designers and developers passionate about creating 
-                    digital solutions that drive businesses. With over 5 years of experience, 
-                    we have helped companies across Latin America establish their digital presence.
-                  </p>
-                  <p className="mb-4">
-                    <strong>Our mission:</strong> Transform ideas into memorable digital experiences 
-                    that connect with your audience.
-                  </p>
-                  <p>
-                    <strong>Our values:</strong> Clarity, professionalism, and on-time delivery.
-                  </p>
-                </>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-        </DialogContent>
-      </Dialog>
-    </>
+        {/* Navigation - Desktop */}
+        <nav className="hidden items-center gap-6 md:flex">
+          <Link 
+            href="/servicios" 
+            className="text-sm font-medium text-foreground/80 transition-colors hover:text-foreground"
+          >
+            {t.nav.services}
+          </Link>
+          <Link 
+            href="/proyectos" 
+            className="text-sm font-medium text-foreground/80 transition-colors hover:text-foreground"
+          >
+            {t.nav.projects}
+          </Link>
+          <Link 
+            href="/acerca-de" 
+            className="text-sm font-medium text-foreground/80 transition-colors hover:text-foreground"
+          >
+            {language === 'es' ? 'Acerca de' : 'About'}
+          </Link>
+          <Link 
+            href="/contacto" 
+            className="text-sm font-medium text-foreground/80 transition-colors hover:text-foreground"
+          >
+            {t.nav.contact}
+          </Link>
+        </nav>
+
+        {/* Actions */}
+        <div className="flex items-center gap-2">
+          {/* More Dropdown - Desktop */}
+          <DropdownMenu open={moreOpen} onOpenChange={setMoreOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="outline" 
+                className="hidden h-10 w-10 p-0 sm:inline-flex"
+                aria-expanded={moreOpen}
+                aria-controls="more-menu"
+                aria-label={language === 'es' ? 'Más opciones' : 'More options'}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent 
+              id="more-menu" 
+              align="end" 
+              className="w-48"
+              onInteractOutside={() => setMoreOpen(false)}
+            >
+              {/* Theme Toggle */}
+              <DropdownMenuItem 
+                className="flex items-center justify-between"
+                onClick={() => setTheme(currentTheme === 'dark' ? 'light' : 'dark')}
+              >
+                <span>{language === 'es' ? 'Tema' : 'Theme'}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setTheme(currentTheme === 'dark' ? 'light' : 'dark')
+                  }}
+                >
+                  {currentTheme === 'dark' ? (
+                    <Sun className="h-4 w-4" />
+                  ) : (
+                    <Moon className="h-4 w-4" />
+                  )}
+                </Button>
+              </DropdownMenuItem>
+
+              {/* Language Toggle */}
+              <DropdownMenuItem className="flex items-center justify-between" onSelect={(e) => e.preventDefault()}>
+                <span>{language === 'es' ? 'Idioma' : 'Language'}</span>
+                <div className="flex h-8 items-center rounded-md border border-border">
+                  <button
+                    onClick={() => setLanguage('es')}
+                    className={`h-full px-2 text-xs font-medium transition-colors ${
+                      language === 'es' 
+                        ? 'bg-foreground text-background' 
+                        : 'text-foreground/60 hover:text-foreground'
+                    }`}
+                  >
+                    ES
+                  </button>
+                  <button
+                    onClick={() => setLanguage('en')}
+                    className={`h-full px-2 text-xs font-medium transition-colors ${
+                      language === 'en' 
+                        ? 'bg-foreground text-background' 
+                        : 'text-foreground/60 hover:text-foreground'
+                    }`}
+                  >
+                    EN
+                  </button>
+                </div>
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+
+              {/* WhatsApp Link */}
+              <DropdownMenuItem asChild>
+                <a 
+                  href="https://wa.me/15709144529" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  WhatsApp
+                </a>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Mobile Menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild className="md:hidden">
+              <Button variant="ghost" size="icon" className="h-10 w-10">
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 6h16M4 12h16M4 18h16"
+                  />
+                </svg>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem asChild>
+                <Link href="/servicios">{t.nav.services}</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/proyectos">{t.nav.projects}</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/acerca-de">{language === 'es' ? 'Acerca de' : 'About'}</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/contacto">{t.nav.contact}</Link>
+              </DropdownMenuItem>
+              
+              <DropdownMenuSeparator />
+              
+              {/* Theme Toggle - Mobile */}
+              <DropdownMenuItem 
+                className="flex items-center justify-between"
+                onClick={() => setTheme(currentTheme === 'dark' ? 'light' : 'dark')}
+              >
+                <span>{language === 'es' ? 'Tema' : 'Theme'}</span>
+                {currentTheme === 'dark' ? (
+                  <Sun className="h-4 w-4" />
+                ) : (
+                  <Moon className="h-4 w-4" />
+                )}
+              </DropdownMenuItem>
+
+              {/* Language Toggle - Mobile */}
+              <DropdownMenuItem className="flex items-center justify-between" onSelect={(e) => e.preventDefault()}>
+                <span>{language === 'es' ? 'Idioma' : 'Language'}</span>
+                <div className="flex h-7 items-center rounded-md border border-border">
+                  <button
+                    onClick={() => setLanguage('es')}
+                    className={`h-full px-2 text-xs font-medium transition-colors ${
+                      language === 'es' 
+                        ? 'bg-foreground text-background' 
+                        : 'text-foreground/60 hover:text-foreground'
+                    }`}
+                  >
+                    ES
+                  </button>
+                  <button
+                    onClick={() => setLanguage('en')}
+                    className={`h-full px-2 text-xs font-medium transition-colors ${
+                      language === 'en' 
+                        ? 'bg-foreground text-background' 
+                        : 'text-foreground/60 hover:text-foreground'
+                    }`}
+                  >
+                    EN
+                  </button>
+                </div>
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+
+              <DropdownMenuItem asChild>
+                <a 
+                  href="https://wa.me/15709144529" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  WhatsApp
+                </a>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+    </header>
   )
 }
