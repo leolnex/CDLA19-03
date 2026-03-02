@@ -4,8 +4,18 @@ import { initialData } from './initial-data'
 
 const DATA_FILENAME = 'cdla-data.json'
 
+// Check if Blob token is available
+function hasBlobToken(): boolean {
+  return !!process.env.BLOB_READ_WRITE_TOKEN
+}
+
 // Obtener datos desde Blob
 export async function getData(): Promise<AppData> {
+  // If no token available (e.g., during build), return initial data
+  if (!hasBlobToken()) {
+    return initialData
+  }
+  
   try {
     const { blobs } = await list()
     const dataBlob = blobs.find(b => b.pathname === DATA_FILENAME)
@@ -49,6 +59,12 @@ export async function getData(): Promise<AppData> {
 
 // Guardar datos en Blob
 export async function saveData(data: AppData): Promise<void> {
+  // If no token available, skip saving
+  if (!hasBlobToken()) {
+    console.warn('No BLOB_READ_WRITE_TOKEN available, skipping save')
+    return
+  }
+  
   try {
     await put(DATA_FILENAME, JSON.stringify(data, null, 2), {
       access: 'public',

@@ -1,13 +1,9 @@
-import { getPublishedProjects, getProjectBySlug } from '@/lib/data'
+import { getProjectBySlug } from '@/lib/data'
 import { ProjectDetail } from '@/components/projects/project-detail'
 import { notFound } from 'next/navigation'
 
-export async function generateStaticParams() {
-  const projects = await getPublishedProjects()
-  return projects.map(project => ({
-    slug: project.slug,
-  }))
-}
+// Force dynamic rendering to avoid build-time blob access
+export const dynamic = 'force-dynamic'
 
 export default async function ProjectPage({
   params,
