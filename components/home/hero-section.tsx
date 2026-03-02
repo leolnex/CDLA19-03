@@ -10,10 +10,10 @@ import type { Service } from '@/lib/types'
 import { categoryLabels } from '@/lib/types'
 
 const fallbackImages = [
-  'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop',
-  'https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=400&h=300&fit=crop',
-  'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=400&h=300&fit=crop',
-  'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=400&h=300&fit=crop',
+  'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=600&fit=crop',
+  'https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=800&h=600&fit=crop',
+  'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&h=600&fit=crop',
+  'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800&h=600&fit=crop',
 ]
 
 export function HeroSection() {
@@ -211,8 +211,8 @@ export function HeroSection() {
                   src={src}
                   alt={`${language === 'es' ? currentService?.title_es : currentService?.title_en} - ${language === 'es' ? 'Imagen' : 'Image'} ${index + 1}`}
                   fill
-                  priority={index === 0}
-                  loading={index === 0 ? 'eager' : 'lazy'}
+                  priority
+                  loading="eager"
                   className="object-cover transition-transform duration-300 hover:scale-105"
                   sizes="(max-width: 768px) 50vw, 25vw"
                 />
