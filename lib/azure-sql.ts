@@ -1,66 +1,86 @@
-import sql from 'mssql'
+// lib/azure-sql.ts
+import sql from "mssql";
 
-// Azure SQL Configuration
-// En producción, usar variables de entorno
+function requiredEnv(name: string): string {
+  const v = process.env[name];
+  if (!v) throw new Error(`[CDLA] Missing env var: ${name}`);
+  return v;
+}
+
 const config: sql.config = {
-  server: process.env.AZURE_SQL_SERVER || 'databasecdlasql.database.windows.net',
-  database: process.env.AZURE_SQL_DATABASE || 'cdladatabase',
-  user: process.env.AZURE_SQL_USER || 'cdlasqladmin',
-  password: process.env.AZURE_SQL_PASSWORD || '{Leonardo13leo}',
-  port: 1433,
+  server: requiredEnv("AZURE_SQL_SERVER"),
+  database: requiredEnv("AZURE_SQL_DATABASE"),
+  user: requiredEnv("AZURE_SQL_USER"),
+  password: requiredEnv("AZURE_SQL_PASSWORD"),
+  port: Number(process.env.AZURE_SQL_PORT ?? 1433),
+
+  // IMPORTANT: these go at the root (not inside options)
+  connectionTimeout: 30_000,
+  requestTimeout: 30_000,
+
   options: {
-    encrypt: true,
-    trustServerCertificate: false,
+    encrypt: (process.env.AZURE_SQL_ENCRYPT ?? "true") === "true",
+    trustServerCertificate: (process.env.AZURE_SQL_TRUST_CERT ?? "false") === "true",
     enableArithAbort: true,
-    connectTimeout: 30000,
-    requestTimeout: 30000,
   },
+
   pool: {
     max: 10,
     min: 0,
-    idleTimeoutMillis: 30000,
+    idleTimeoutMillis: 30_000,
   },
+};
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __cdlaSqlPool: sql.ConnectionPool | undefined;
 }
 
-// Singleton pool
-let pool: sql.ConnectionPool | null = null
+async function connectPool(): Promise<sql.ConnectionPool> {
+  const pool = new sql.ConnectionPool(config);
+  const connected = await pool.connect();
+
+  connected.on("error", (e) => {
+    console.error("[CDLA] Azure SQL pool error:", e);
+  });
+
+  console.log("[CDLA] Connected to Azure SQL Database");
+  return connected;
+}
 
 export async function getConnection(): Promise<sql.ConnectionPool> {
-  if (pool && pool.connected) {
-    return pool
-  }
-  
-  try {
-    pool = await sql.connect(config)
-    console.log('[CDLA] Connected to Azure SQL Database')
-    return pool
-  } catch (error) {
-    console.error('[CDLA] Error connecting to Azure SQL:', error)
-    throw error
-  }
+  if (global.__cdlaSqlPool?.connected) return global.__cdlaSqlPool;
+
+  global.__cdlaSqlPool = await connectPool();
+  return global.__cdlaSqlPool;
 }
 
+// You generally shouldn't call this per-request in serverless.
+// It's here for manual teardown or rare recovery.
 export async function closeConnection(): Promise<void> {
-  if (pool) {
-    await pool.close()
-    pool = null
-    console.log('[CDLA] Azure SQL connection closed')
+  if (global.__cdlaSqlPool) {
+    try {
+      await global.__cdlaSqlPool.close();
+    } finally {
+      global.__cdlaSqlPool = undefined;
+      console.log("[CDLA] Azure SQL connection closed");
+    }
   }
 }
 
-// Helper para ejecutar queries con reconexión automática
+// Helper to execute queries with a single retry on connection issues
 export async function executeQuery<T>(
   queryFn: (pool: sql.ConnectionPool) => Promise<T>
 ): Promise<T> {
   try {
-    const connection = await getConnection()
-    return await queryFn(connection)
+    const connection = await getConnection();
+    return await queryFn(connection);
   } catch (error) {
-    // Intentar reconectar una vez
-    pool = null
-    const connection = await getConnection()
-    return await queryFn(connection)
+    console.error("[CDLA] Query failed, retrying once:", error);
+    await closeConnection(); // force reconnect
+    const connection = await getConnection();
+    return await queryFn(connection);
   }
 }
 
-export { sql }
+export { sql };
