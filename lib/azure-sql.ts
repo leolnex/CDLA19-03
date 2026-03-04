@@ -1,4 +1,3 @@
-// lib/azure-sql.ts
 import sql from "mssql";
 
 function requiredEnv(name: string): string {
@@ -20,7 +19,8 @@ const config: sql.config = {
 
   options: {
     encrypt: (process.env.AZURE_SQL_ENCRYPT ?? "true") === "true",
-    trustServerCertificate: (process.env.AZURE_SQL_TRUST_CERT ?? "false") === "true",
+    trustServerCertificate:
+      (process.env.AZURE_SQL_TRUST_CERT ?? "false") === "true",
     enableArithAbort: true,
   },
 
@@ -70,7 +70,7 @@ export async function closeConnection(): Promise<void> {
 
 // Helper to execute queries with a single retry on connection issues
 export async function executeQuery<T>(
-  queryFn: (pool: sql.ConnectionPool) => Promise<T>
+  queryFn: (pool: sql.ConnectionPool) => Promise<T>,
 ): Promise<T> {
   try {
     const connection = await getConnection();
@@ -80,6 +80,32 @@ export async function executeQuery<T>(
     await closeConnection(); // force reconnect
     const connection = await getConnection();
     return await queryFn(connection);
+  }
+}
+export async function testConnection(): Promise<{
+  ok: boolean;
+  server?: string;
+  database?: string;
+  error?: string;
+}> {
+  try {
+    const pool = await getConnection();
+
+    // Ping básico a la DB
+    const r = await pool.request().query("SELECT 1 AS ok");
+
+    const ok = r.recordset?.[0]?.ok === 1;
+
+    return {
+      ok,
+      server: config.server as string,
+      database: config.database as string,
+    };
+  } catch (e: any) {
+    return {
+      ok: false,
+      error: e?.message ?? String(e),
+    };
   }
 }
 
