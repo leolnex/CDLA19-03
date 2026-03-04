@@ -4,6 +4,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/components/theme-provider'
 import { LanguageProvider } from '@/components/providers/language-provider'
 import { AuthProvider } from '@/components/providers/auth-provider'
+import { DbInitializer } from '@/components/providers/db-initializer'
 import './globals.css'
 
 const roboto = Roboto({ 
@@ -40,6 +41,7 @@ export default function RootLayout({
         >
           <LanguageProvider>
             <AuthProvider>
+              <DbInitializer />
               {children}
             </AuthProvider>
           </LanguageProvider>
