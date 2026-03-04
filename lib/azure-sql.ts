@@ -14,7 +14,7 @@ const config: sql.config = {
   password: requiredEnv("AZURE_SQL_PASSWORD"),
   port: Number(process.env.AZURE_SQL_PORT ?? 1433),
 
-  // IMPORTANT: these go at the root (not inside options)
+  // IMPORTANT: these go at the root (not inside options)SDFDSF
   connectionTimeout: 30_000,
   requestTimeout: 30_000,
 
