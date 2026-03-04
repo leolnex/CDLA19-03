@@ -634,6 +634,25 @@ export async function incrementVisits(): Promise<number> {
 }
 
 // =============================================
+// INITIALIZATION
+// =============================================
+
+export async function initializeDatabase(): Promise<void> {
+  // This function can be called to verify the database is set up
+  // The schema should be created via the SQL script in scripts/azure-sql-schema.sql
+  // This function will just verify connectivity
+  try {
+    await executeQuery(async (pool) => {
+      await pool.request().query(`SELECT 1 as test`)
+    })
+    console.log('[CDLA] Database connection verified')
+  } catch (error) {
+    console.error('[CDLA] Database initialization error:', error)
+    throw error
+  }
+}
+
+// =============================================
 // HELPERS
 // =============================================
 
