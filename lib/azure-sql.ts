@@ -1,0 +1,86 @@
+// lib/azure-sql.ts
+import sql from "mssql";
+
+function requiredEnv(name: string): string {
+  const v = process.env[name];
+  if (!v) throw new Error(`[CDLA] Missing env var: ${name}`);
+  return v;
+}
+
+const config: sql.config = {
+  server: requiredEnv("AZURE_SQL_SERVER"),
+  database: requiredEnv("AZURE_SQL_DATABASE"),
+  user: requiredEnv("AZURE_SQL_USER"),
+  password: requiredEnv("AZURE_SQL_PASSWORD"),
+  port: Number(process.env.AZURE_SQL_PORT ?? 1433),
+
+  // IMPORTANT: these go at the root (not inside options)SDFDSF
+  connectionTimeout: 30_000,
+  requestTimeout: 30_000,
+
+  options: {
+    encrypt: (process.env.AZURE_SQL_ENCRYPT ?? "true") === "true",
+    trustServerCertificate: (process.env.AZURE_SQL_TRUST_CERT ?? "false") === "true",
+    enableArithAbort: true,
+  },
+
+  pool: {
+    max: 10,
+    min: 0,
+    idleTimeoutMillis: 30_000,
+  },
+};
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __cdlaSqlPool: sql.ConnectionPool | undefined;
+}
+
+async function connectPool(): Promise<sql.ConnectionPool> {
+  const pool = new sql.ConnectionPool(config);
+  const connected = await pool.connect();
+
+  connected.on("error", (e) => {
+    console.error("[CDLA] Azure SQL pool error:", e);
+  });
+
+  console.log("[CDLA] Connected to Azure SQL Database");
+  return connected;
+}
+
+export async function getConnection(): Promise<sql.ConnectionPool> {
+  if (global.__cdlaSqlPool?.connected) return global.__cdlaSqlPool;
+
+  global.__cdlaSqlPool = await connectPool();
+  return global.__cdlaSqlPool;
+}
+
+// You generally shouldn't call this per-request in serverless.
+// It's here for manual teardown or rare recovery.
+export async function closeConnection(): Promise<void> {
+  if (global.__cdlaSqlPool) {
+    try {
+      await global.__cdlaSqlPool.close();
+    } finally {
+      global.__cdlaSqlPool = undefined;
+      console.log("[CDLA] Azure SQL connection closed");
+    }
+  }
+}
+
+// Helper to execute queries with a single retry on connection issues
+export async function executeQuery<T>(
+  queryFn: (pool: sql.ConnectionPool) => Promise<T>
+): Promise<T> {
+  try {
+    const connection = await getConnection();
+    return await queryFn(connection);
+  } catch (error) {
+    console.error("[CDLA] Query failed, retrying once:", error);
+    await closeConnection(); // force reconnect
+    const connection = await getConnection();
+    return await queryFn(connection);
+  }
+}
+
+export { sql };
