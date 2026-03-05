@@ -16,30 +16,35 @@ function getAzureSqlServer(): string {
   return server;
 }
 
-const config: sql.config = {
-  server: getAzureSqlServer(),
-  database: requiredEnv("AZURE_SQL_DATABASE"),
-  user: requiredEnv("AZURE_SQL_USER"),
-  password: requiredEnv("AZURE_SQL_PASSWORD"),
-  port: Number(process.env.AZURE_SQL_PORT ?? 1433),
+// Lazy config getter to ensure env vars are read at runtime, not build time
+function getConfig(): sql.config {
+  const server = getAzureSqlServer();
+  console.log("[CDLA] Connecting to server:", server);
+  
+  return {
+    server,
+    database: requiredEnv("AZURE_SQL_DATABASE"),
+    user: requiredEnv("AZURE_SQL_USER"),
+    password: requiredEnv("AZURE_SQL_PASSWORD"),
+    port: Number(process.env.AZURE_SQL_PORT ?? 1433),
 
-  // IMPORTANT: these go at the root (not inside options)SDFDSF
-  connectionTimeout: 30_000,
-  requestTimeout: 30_000,
+    connectionTimeout: 30_000,
+    requestTimeout: 30_000,
 
-  options: {
-    encrypt: (process.env.AZURE_SQL_ENCRYPT ?? "true") === "true",
-    trustServerCertificate:
-      (process.env.AZURE_SQL_TRUST_CERT ?? "false") === "true",
-    enableArithAbort: true,
-  },
+    options: {
+      encrypt: (process.env.AZURE_SQL_ENCRYPT ?? "true") === "true",
+      trustServerCertificate:
+        (process.env.AZURE_SQL_TRUST_CERT ?? "false") === "true",
+      enableArithAbort: true,
+    },
 
-  pool: {
-    max: 10,
-    min: 0,
-    idleTimeoutMillis: 30_000,
-  },
-};
+    pool: {
+      max: 10,
+      min: 0,
+      idleTimeoutMillis: 30_000,
+    },
+  };
+}
 
 declare global {
   // eslint-disable-next-line no-var
@@ -47,6 +52,7 @@ declare global {
 }
 
 async function connectPool(): Promise<sql.ConnectionPool> {
+  const config = getConfig();
   const pool = new sql.ConnectionPool(config);
   const connected = await pool.connect();
 
@@ -106,10 +112,11 @@ export async function testConnection(): Promise<{
 
     const ok = r.recordset?.[0]?.ok === 1;
 
+    const cfg = getConfig();
     return {
       ok,
-      server: config.server as string,
-      database: config.database as string,
+      server: cfg.server as string,
+      database: cfg.database as string,
     };
   } catch (e: any) {
     return {
