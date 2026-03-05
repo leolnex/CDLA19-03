@@ -6,8 +6,18 @@ function requiredEnv(name: string): string {
   return v;
 }
 
+// Ensure the server hostname has the full Azure SQL domain
+function getAzureSqlServer(): string {
+  let server = requiredEnv("AZURE_SQL_SERVER");
+  // If the server doesn't include the Azure domain, append it
+  if (!server.includes('.database.windows.net')) {
+    server = `${server}.database.windows.net`;
+  }
+  return server;
+}
+
 const config: sql.config = {
-  server: requiredEnv("AZURE_SQL_SERVER"),
+  server: getAzureSqlServer(),
   database: requiredEnv("AZURE_SQL_DATABASE"),
   user: requiredEnv("AZURE_SQL_USER"),
   password: requiredEnv("AZURE_SQL_PASSWORD"),
