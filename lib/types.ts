@@ -15,8 +15,8 @@ export interface Service {
   ideal_en: string
   bullets_es: string[]
   bullets_en: string[]
-  // Hero images - 4 imágenes para el carrusel del hero
-  hero_images: string[]
+  // Hero images - 4 imágenes para el carrusel del hero (IDs numéricos o URLs legacy)
+  hero_images: (number | string)[]
   status: 'draft' | 'publish'
   createdAt: string
   updatedAt: string
@@ -33,8 +33,10 @@ export interface Project {
   location: string
   featured: boolean
   project_url?: string
-  cover_image: string
-  gallery_images: string[]
+  // Cover image - ID numérico o URL legacy
+  cover_image: number | string
+  // Gallery images - IDs numéricos o URLs legacy
+  gallery_images: (number | string)[]
   status: 'draft' | 'publish'
   createdAt: string
   updatedAt: string

@@ -12,6 +12,17 @@ import { Search, ExternalLink } from 'lucide-react'
 import type { Project, ServiceCategory } from '@/lib/types'
 import { categoryLabels } from '@/lib/types'
 
+// Helper to get image source - handles both IDs and legacy URLs
+function getImageSrc(val: unknown): string | null {
+  if (typeof val === 'number' && val > 0) {
+    return `/api/images/${val}`
+  }
+  if (typeof val === 'string' && val.startsWith('http')) {
+    return val
+  }
+  return null
+}
+
 function ProjectsContent() {
   const searchParams = useSearchParams()
   const { language, t } = useLanguage()
@@ -92,19 +103,30 @@ function ProjectsContent() {
 
         {/* Projects Grid */}
         <div className="grid gap-6 sm:grid-cols-2">
-          {filteredProjects.map(project => (
-            <Card key={project.id} className="group overflow-hidden border-border">
-              <Link href={`/proyectos/${project.slug}`}>
-                <div className="relative aspect-[16/10] overflow-hidden">
-                  <Image
-                    src={project.cover_image}
-                    alt={language === 'es' ? project.title_es : project.title_en}
-                    fill
-                    className="object-cover transition-transform duration-500 group-hover:scale-105"
-                    sizes="(max-width: 768px) 100vw, 50vw"
-                  />
-                </div>
-              </Link>
+          {filteredProjects.map(project => {
+            const coverSrc = getImageSrc(project.cover_image)
+            const isApiImage = coverSrc?.startsWith('/api/images/')
+            
+            return (
+              <Card key={project.id} className="group overflow-hidden border-border">
+                <Link href={`/proyectos/${project.slug}`}>
+                  <div className="relative aspect-[16/10] overflow-hidden">
+                    {coverSrc ? (
+                      <Image
+                        src={coverSrc}
+                        alt={language === 'es' ? project.title_es : project.title_en}
+                        fill
+                        className="object-cover transition-transform duration-500 group-hover:scale-105"
+                        sizes="(max-width: 768px) 100vw, 50vw"
+                        unoptimized={isApiImage}
+                      />
+                    ) : (
+                      <div className="absolute inset-0 bg-muted flex items-center justify-center">
+                        <span className="text-muted-foreground">No image</span>
+                      </div>
+                    )}
+                  </div>
+                </Link>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between">
                   <div>
@@ -134,7 +156,8 @@ function ProjectsContent() {
                 )}
               </CardContent>
             </Card>
-          ))}
+            )
+          })}
         </div>
       </div>
     </div>
