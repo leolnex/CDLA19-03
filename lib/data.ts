@@ -719,6 +719,29 @@ export async function initializeDatabase(): Promise<void> {
         )
       `)
 
+      // Create images table for storing images as binary
+      await pool.request().query(`
+        IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'cdla_images')
+        CREATE TABLE cdla_images (
+          image_id INT IDENTITY(1,1) PRIMARY KEY,
+          owner_type NVARCHAR(20) NOT NULL,
+          owner_id INT NULL,
+          role NVARCHAR(20) NOT NULL,
+          slot INT NULL,
+          mime_type NVARCHAR(100) NOT NULL,
+          width INT NOT NULL,
+          height INT NOT NULL,
+          bytes VARBINARY(MAX) NOT NULL,
+          created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+        )
+      `)
+
+      // Create index for faster lookups
+      await pool.request().query(`
+        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_cdla_images_owner')
+        CREATE INDEX IX_cdla_images_owner ON cdla_images (owner_type, owner_id, role)
+      `)
+
       // Seed settings if empty
       const settingsCount = await pool.request().query(`SELECT COUNT(*) as cnt FROM cdla_settings`)
       if (settingsCount.recordset[0].cnt === 0) {

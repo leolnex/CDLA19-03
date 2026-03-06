@@ -11,6 +11,17 @@ import { ArrowRight, Star, RefreshCw } from 'lucide-react'
 import type { Project } from '@/lib/types'
 import { categoryLabels } from '@/lib/types'
 
+// Helper to get image source - handles both IDs and legacy URLs
+function getImageSrc(val: unknown): string | null {
+  if (typeof val === 'number' && val > 0) {
+    return `/api/images/${val}`
+  }
+  if (typeof val === 'string' && val.startsWith('http')) {
+    return val
+  }
+  return null
+}
+
 export function FeaturedProjects() {
   const { language, t } = useLanguage()
   const [projects, setProjects] = useState<Project[]>([])
@@ -122,17 +133,28 @@ export function FeaturedProjects() {
 
         {/* Projects Grid */}
         <div className="grid gap-6 sm:grid-cols-2">
-          {projects.map((project) => (
+          {projects.map((project) => {
+            const coverSrc = getImageSrc(project.cover_image)
+            const isApiImage = coverSrc?.startsWith('/api/images/')
+            
+            return (
             <Link key={project.id} href={`/proyectos/${project.slug}`}>
               <Card className="group overflow-hidden border-border transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
                 <div className="relative aspect-[16/10] overflow-hidden">
-                  <Image
-                    src={project.cover_image}
-                    alt={language === 'es' ? project.title_es : project.title_en}
-                    fill
-                    className="object-cover transition-transform duration-500 group-hover:scale-105"
-                    sizes="(max-width: 768px) 100vw, 50vw"
-                  />
+                  {coverSrc ? (
+                    <Image
+                      src={coverSrc}
+                      alt={language === 'es' ? project.title_es : project.title_en}
+                      fill
+                      className="object-cover transition-transform duration-500 group-hover:scale-105"
+                      sizes="(max-width: 768px) 100vw, 50vw"
+                      unoptimized={isApiImage}
+                    />
+                  ) : (
+                    <div className="absolute inset-0 bg-muted flex items-center justify-center">
+                      <span className="text-muted-foreground">No image</span>
+                    </div>
+                  )}
                   {/* Featured Badge */}
                   {project.featured && (
                     <div className="absolute top-3 right-3">
@@ -164,7 +186,8 @@ export function FeaturedProjects() {
                 </CardContent>
               </Card>
             </Link>
-          ))}
+          )})}
+          
         </div>
 
         {/* Stats */}

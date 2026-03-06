@@ -16,6 +16,17 @@ const fallbackImages = [
   'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800&h=600&fit=crop',
 ]
 
+// Helper to get image source - handles both IDs and legacy URLs
+function getHeroImageSrc(val: unknown): string {
+  if (typeof val === 'number' && val > 0) {
+    return `/api/images/${val}`
+  }
+  if (typeof val === 'string' && val.startsWith('http')) {
+    return val
+  }
+  return fallbackImages[0]
+}
+
 export function HeroSection() {
   const { language, t } = useLanguage()
   const [services, setServices] = useState<Service[]>([])
@@ -202,22 +213,27 @@ export function HeroSection() {
 
           {/* Image Grid - Right Column (2x2) */}
           <div className="grid grid-cols-2 gap-4">
-            {heroImages.map((src, index) => (
-              <div
-                key={`${currentSlide}-${index}`}
-                className="relative aspect-[4/3] overflow-hidden rounded-2xl"
-              >
-                <Image
-                  src={src}
-                  alt={`${language === 'es' ? currentService?.title_es : currentService?.title_en} - ${language === 'es' ? 'Imagen' : 'Image'} ${index + 1}`}
-                  fill
-                  priority
-                  loading="eager"
-                  className="object-cover transition-transform duration-300 hover:scale-105"
-                  sizes="(max-width: 768px) 50vw, 25vw"
-                />
-              </div>
-            ))}
+            {heroImages.map((imgVal, index) => {
+              const src = getHeroImageSrc(imgVal)
+              const isApiImage = src.startsWith('/api/images/')
+              return (
+                <div
+                  key={`${currentSlide}-${index}`}
+                  className="relative aspect-[4/3] overflow-hidden rounded-2xl"
+                >
+                  <Image
+                    src={src}
+                    alt={`${language === 'es' ? currentService?.title_es : currentService?.title_en} - ${language === 'es' ? 'Imagen' : 'Image'} ${index + 1}`}
+                    fill
+                    priority
+                    loading="eager"
+                    className="object-cover transition-transform duration-300 hover:scale-105"
+                    sizes="(max-width: 768px) 50vw, 25vw"
+                    unoptimized={isApiImage}
+                  />
+                </div>
+              )
+            })}
           </div>
         </div>
       </div>

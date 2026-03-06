@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useLanguage } from '@/components/providers/language-provider'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -26,7 +26,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Plus, Pencil, Trash2, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Upload, ImageIcon, Loader2 } from 'lucide-react'
+import Image from 'next/image'
 import type { Service, ServiceCategory } from '@/lib/types'
 import { categoryLabels } from '@/lib/types'
 
@@ -42,8 +43,24 @@ const emptyService = {
   ideal_en: '',
   bullets_es: [''],
   bullets_en: [''],
-  hero_images: ['', '', '', ''],
+  hero_images: [0, 0, 0, 0] as number[], // IDs instead of URLs
   status: 'publish' as const,
+}
+
+// Helper to check if a value is a valid image ID
+function isValidImageId(val: unknown): val is number {
+  return typeof val === 'number' && val > 0
+}
+
+// Helper to get image source - handles both IDs and legacy URLs
+function getImageSrc(val: unknown): string | null {
+  if (isValidImageId(val)) {
+    return `/api/images/${val}`
+  }
+  if (typeof val === 'string' && val.startsWith('http')) {
+    return val // Legacy URL support
+  }
+  return null
 }
 
 export default function AdminServiciosPage() {
@@ -55,6 +72,8 @@ export default function AdminServiciosPage() {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [uploadingSlot, setUploadingSlot] = useState<number | null>(null)
+  const fileInputRefs = useRef<(HTMLInputElement | null)[]>([null, null, null, null])
 
   useEffect(() => {
     fetchServices()
@@ -76,7 +95,64 @@ export default function AdminServiciosPage() {
     }
   }
 
+  const handleImageUpload = async (file: File, slotIndex: number) => {
+    setUploadingSlot(slotIndex)
+    setError(null)
+    
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('owner_type', 'service')
+      formData.append('role', 'service_hero')
+      formData.append('slot', String(slotIndex + 1))
+      if (editingService.id) {
+        formData.append('owner_id', editingService.id)
+      }
+      
+      const res = await fetch('/api/images/upload', {
+        method: 'POST',
+        body: formData,
+      })
+      
+      if (!res.ok) {
+        const errData = await res.json()
+        throw new Error(errData.error || 'Upload failed')
+      }
+      
+      const data = await res.json()
+      
+      // Update the hero_images array with the new image ID
+      const newImages = [...editingService.hero_images]
+      newImages[slotIndex] = data.image_id
+      setEditingService(prev => ({ ...prev, hero_images: newImages }))
+      
+    } catch (err) {
+      setError(language === 'es' ? 'Error al subir imagen' : 'Error uploading image')
+      console.error('Error uploading image:', err)
+    } finally {
+      setUploadingSlot(null)
+    }
+  }
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, slotIndex: number) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      handleImageUpload(file, slotIndex)
+    }
+    // Reset input
+    e.target.value = ''
+  }
+
+  // Check if all 4 hero images are valid
+  const hasAllHeroImages = editingService.hero_images.every(img => isValidImageId(img) || (typeof img === 'string' && img.startsWith('http')))
+
   const handleSave = async () => {
+    // Validate hero images
+    if (!hasAllHeroImages) {
+      setError(language === 'es' ? 'Debes subir las 4 imagenes del hero' : 'You must upload all 4 hero images')
+      return
+    }
+
     setSaving(true)
     setError(null)
     try {
@@ -123,6 +199,18 @@ export default function AdminServiciosPage() {
   }
 
   const openEdit = (service: Service) => {
+    // Convert hero_images to array of IDs/URLs
+    const heroImages = Array.isArray(service.hero_images) 
+      ? service.hero_images.map(img => {
+          if (typeof img === 'number') return img
+          if (typeof img === 'string' && img.startsWith('http')) return img
+          return 0
+        })
+      : [0, 0, 0, 0]
+    
+    // Ensure we have exactly 4 slots
+    while (heroImages.length < 4) heroImages.push(0)
+    
     setEditingService({
       id: service.id,
       slug: service.slug,
@@ -136,7 +224,7 @@ export default function AdminServiciosPage() {
       ideal_en: service.ideal_en,
       bullets_es: service.bullets_es,
       bullets_en: service.bullets_en,
-      hero_images: service.hero_images?.length === 4 ? service.hero_images : ['', '', '', ''],
+      hero_images: heroImages as number[],
       status: service.status,
     })
     setDialogOpen(true)
@@ -363,29 +451,74 @@ export default function AdminServiciosPage() {
                 </div>
               </div>
 
+              {/* Hero Images Upload */}
               <div className="rounded-2xl border border-border bg-muted/30 p-4">
                 <Label className="mb-3 block">
-                  {language === 'es' ? 'Imagenes del Hero (4 imagenes para el carrusel)' : 'Hero Images (4 images for carousel)'}
+                  {language === 'es' ? 'Imagenes del Hero (4 imagenes 1:1)' : 'Hero Images (4 images 1:1)'}
                 </Label>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {editingService.hero_images.map((url, index) => (
-                    <div key={index}>
-                      <Label className="text-xs text-foreground/60">
-                        {language === 'es' ? `Imagen ${index + 1}` : `Image ${index + 1}`}
-                      </Label>
-                      <Input
-                        value={url}
-                        onChange={e => {
-                          const newImages = [...editingService.hero_images]
-                          newImages[index] = e.target.value
-                          setEditingService(prev => ({ ...prev, hero_images: newImages }))
-                        }}
-                        placeholder="https://..."
-                        className="mt-1"
-                      />
-                    </div>
-                  ))}
+                <p className="text-xs text-foreground/60 mb-3">
+                  {language === 'es' 
+                    ? 'Las imagenes se redimensionan automaticamente a 1200x1200px' 
+                    : 'Images are automatically resized to 1200x1200px'}
+                </p>
+                <div className="grid gap-3 grid-cols-2">
+                  {[0, 1, 2, 3].map((slotIndex) => {
+                    const imgVal = editingService.hero_images[slotIndex]
+                    const imgSrc = getImageSrc(imgVal)
+                    const isUploading = uploadingSlot === slotIndex
+                    
+                    return (
+                      <div key={slotIndex} className="relative">
+                        <input
+                          type="file"
+                          ref={el => { fileInputRefs.current[slotIndex] = el }}
+                          onChange={(e) => handleFileSelect(e, slotIndex)}
+                          accept="image/*"
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => fileInputRefs.current[slotIndex]?.click()}
+                          disabled={isUploading}
+                          className="relative w-full aspect-square rounded-xl border-2 border-dashed border-border hover:border-foreground/50 transition-colors overflow-hidden group"
+                        >
+                          {imgSrc ? (
+                            <>
+                              <Image
+                                src={imgSrc}
+                                alt={`Hero ${slotIndex + 1}`}
+                                fill
+                                className="object-cover"
+                                unoptimized={imgSrc.startsWith('/api/images/')}
+                              />
+                              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <Upload className="h-6 w-6 text-white" />
+                              </div>
+                            </>
+                          ) : (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center text-foreground/40">
+                              {isUploading ? (
+                                <Loader2 className="h-8 w-8 animate-spin" />
+                              ) : (
+                                <>
+                                  <ImageIcon className="h-8 w-8 mb-1" />
+                                  <span className="text-xs">
+                                    {language === 'es' ? `Imagen ${slotIndex + 1}` : `Image ${slotIndex + 1}`}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </button>
+                      </div>
+                    )
+                  })}
                 </div>
+                {!hasAllHeroImages && (
+                  <p className="text-xs text-amber-600 mt-2">
+                    {language === 'es' ? 'Debes subir las 4 imagenes para guardar' : 'You must upload all 4 images to save'}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -405,11 +538,22 @@ export default function AdminServiciosPage() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {error && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
+                  {error}
+                </div>
+              )}
+
               <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
                 <Button variant="outline" onClick={() => setDialogOpen(false)} className="w-full sm:w-auto">
                   {t.admin.cancel}
                 </Button>
-                <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
+                <Button 
+                  onClick={handleSave} 
+                  disabled={saving || !hasAllHeroImages} 
+                  className="w-full sm:w-auto"
+                >
                   {saving ? 'Guardando...' : t.admin.save}
                 </Button>
               </div>
@@ -419,7 +563,7 @@ export default function AdminServiciosPage() {
       </div>
 
       {/* Error Message */}
-      {error && (
+      {error && !dialogOpen && (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
           {error}
         </div>
@@ -510,6 +654,15 @@ export default function AdminServiciosPage() {
               </Card>
             ))}
           </div>
+
+          {/* Empty State */}
+          {services.length === 0 && (
+            <div className="rounded-2xl border border-border bg-muted/30 p-12 text-center">
+              <p className="text-foreground/60">
+                {language === 'es' ? 'No hay servicios aun' : 'No services yet'}
+              </p>
+            </div>
+          )}
         </>
       )}
 
@@ -517,12 +670,16 @@ export default function AdminServiciosPage() {
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t.admin.confirm}</AlertDialogTitle>
-            <AlertDialogDescription>{t.admin.deleteConfirm}</AlertDialogDescription>
+            <AlertDialogTitle>{t.admin.confirmDelete}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t.admin.deleteWarning}
+            </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
-            <AlertDialogCancel className="w-full sm:w-auto">{t.admin.cancel}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="w-full sm:w-auto">{t.admin.delete}</AlertDialogAction>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t.admin.cancel}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
+              {t.admin.delete}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -9,6 +9,17 @@ import { ArrowLeft, ExternalLink } from 'lucide-react'
 import type { Project } from '@/lib/types'
 import { categoryLabels } from '@/lib/types'
 
+// Helper to get image source - handles both IDs and legacy URLs
+function getImageSrc(val: unknown): string | null {
+  if (typeof val === 'number' && val > 0) {
+    return `/api/images/${val}`
+  }
+  if (typeof val === 'string' && val.startsWith('http')) {
+    return val
+  }
+  return null
+}
+
 interface ProjectDetailProps {
   project: Project
 }
@@ -19,6 +30,9 @@ export function ProjectDetail({ project }: ProjectDetailProps) {
   const title = language === 'es' ? project.title_es : project.title_en
   const desc = language === 'es' ? project.desc_es : project.desc_en
   const categoryLabel = categoryLabels[project.category][language]
+  
+  const coverSrc = getImageSrc(project.cover_image)
+  const isApiCover = coverSrc?.startsWith('/api/images/')
 
   return (
     <div className="py-8 md:py-12">
@@ -34,14 +48,17 @@ export function ProjectDetail({ project }: ProjectDetailProps) {
 
         {/* Hero Image with Overlay */}
         <div className="relative mb-8 aspect-[21/9] overflow-hidden rounded-2xl">
-          <Image
-            src={project.cover_image}
-            alt={title}
-            fill
-            className="object-cover"
-            priority
-            sizes="100vw"
-          />
+          {coverSrc && (
+            <Image
+              src={coverSrc}
+              alt={title}
+              fill
+              className="object-cover"
+              priority
+              sizes="100vw"
+              unoptimized={isApiCover}
+            />
+          )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
           <div className="absolute bottom-0 left-0 p-6 text-white md:p-10">
             <p className="text-sm opacity-80">
@@ -82,33 +99,40 @@ export function ProjectDetail({ project }: ProjectDetailProps) {
             <h2 className="mb-2 text-xl font-bold">{t.projects.gallery}</h2>
             <p className="mb-6 text-foreground/70">{t.projects.galleryDesc}</p>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {project.gallery_images.map((img, index) => (
-                <div key={index} className="relative aspect-[4/3] overflow-hidden rounded-xl">
-                  <Image
-                    src={img}
-                    alt={`${title} - ${index + 1}`}
-                    fill
-                    className="object-cover"
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                  />
-                </div>
-              ))}
+              {project.gallery_images.map((img, index) => {
+                const gallerySrc = getImageSrc(img)
+                if (!gallerySrc) return null
+                const isApiGallery = gallerySrc.startsWith('/api/images/')
+                return (
+                  <div key={index} className="relative aspect-[4/3] overflow-hidden rounded-xl">
+                    <Image
+                      src={gallerySrc}
+                      alt={`${title} - ${index + 1}`}
+                      fill
+                      className="object-cover"
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                      unoptimized={isApiGallery}
+                    />
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}
 
         {/* If no gallery, show cover as gallery */}
-        {project.gallery_images.length === 0 && (
+        {project.gallery_images.length === 0 && coverSrc && (
           <div className="mb-12">
             <h2 className="mb-2 text-xl font-bold">{t.projects.gallery}</h2>
             <p className="mb-6 text-foreground/70">{t.projects.galleryDesc}</p>
             <div className="relative aspect-[16/9] overflow-hidden rounded-xl">
               <Image
-                src={project.cover_image}
+                src={coverSrc}
                 alt={title}
                 fill
                 className="object-cover"
                 sizes="100vw"
+                unoptimized={isApiCover}
               />
             </div>
           </div>

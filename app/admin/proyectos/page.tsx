@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import Image from 'next/image'
 import { useLanguage } from '@/components/providers/language-provider'
 import { Button } from '@/components/ui/button'
@@ -28,7 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Plus, Pencil, Trash2, Upload, Star, MapPin } from 'lucide-react'
+import { Plus, Pencil, Trash2, Upload, Star, MapPin, Loader2, ImageIcon } from 'lucide-react'
 import type { Project, ServiceCategory } from '@/lib/types'
 import { categoryLabels } from '@/lib/types'
 
@@ -42,9 +42,30 @@ const emptyProject = {
   location: '',
   featured: false,
   project_url: '',
-  cover_image: '',
-  gallery_images: [] as string[],
+  cover_image: 0 as number | string, // Can be ID or legacy URL
+  gallery_images: [] as (number | string)[], // Can be IDs or legacy URLs
   status: 'publish' as const,
+}
+
+// Helper to check if a value is a valid image ID
+function isValidImageId(val: unknown): val is number {
+  return typeof val === 'number' && val > 0
+}
+
+// Helper to get image source - handles both IDs and legacy URLs
+function getImageSrc(val: unknown): string | null {
+  if (isValidImageId(val)) {
+    return `/api/images/${val}`
+  }
+  if (typeof val === 'string' && val.startsWith('http')) {
+    return val // Legacy URL support
+  }
+  return null
+}
+
+// Helper to check if cover image is valid
+function hasValidCover(val: unknown): boolean {
+  return isValidImageId(val) || (typeof val === 'string' && val.startsWith('http'))
 }
 
 export default function AdminProyectosPage() {
@@ -55,8 +76,11 @@ export default function AdminProyectosPage() {
   const [editingProject, setEditingProject] = useState<typeof emptyProject & { id?: string }>(emptyProject)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [uploading, setUploading] = useState(false)
+  const [uploadingCover, setUploadingCover] = useState(false)
+  const [uploadingGallery, setUploadingGallery] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const coverInputRef = useRef<HTMLInputElement>(null)
+  const galleryInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetchProjects()
@@ -78,38 +102,92 @@ export default function AdminProyectosPage() {
     }
   }
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'cover' | 'gallery') => {
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    e.target.value = ''
 
-    setUploading(true)
+    setUploadingCover(true)
+    setError(null)
+    
     try {
       const formData = new FormData()
       formData.append('file', file)
-      const res = await fetch('/api/upload', {
+      formData.append('owner_type', 'project')
+      formData.append('role', 'project_cover')
+      if (editingProject.id) {
+        formData.append('owner_id', editingProject.id)
+      }
+      
+      const res = await fetch('/api/images/upload', {
         method: 'POST',
         body: formData,
       })
       
-      if (!res.ok) throw new Error('Failed to upload')
-      const data = await res.json()
-      
-      if (type === 'cover') {
-        setEditingProject(prev => ({ ...prev, cover_image: data.url }))
-      } else {
-        setEditingProject(prev => ({
-          ...prev,
-          gallery_images: [...prev.gallery_images, data.url],
-        }))
+      if (!res.ok) {
+        const errData = await res.json()
+        throw new Error(errData.error || 'Upload failed')
       }
+      
+      const data = await res.json()
+      setEditingProject(prev => ({ ...prev, cover_image: data.image_id }))
+      
     } catch (err) {
-      console.error('Error uploading:', err)
+      setError(language === 'es' ? 'Error al subir imagen' : 'Error uploading image')
+      console.error('Error uploading cover:', err)
     } finally {
-      setUploading(false)
+      setUploadingCover(false)
+    }
+  }
+
+  const handleGalleryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+
+    setUploadingGallery(true)
+    setError(null)
+    
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('owner_type', 'project')
+      formData.append('role', 'project_gallery')
+      if (editingProject.id) {
+        formData.append('owner_id', editingProject.id)
+      }
+      
+      const res = await fetch('/api/images/upload', {
+        method: 'POST',
+        body: formData,
+      })
+      
+      if (!res.ok) {
+        const errData = await res.json()
+        throw new Error(errData.error || 'Upload failed')
+      }
+      
+      const data = await res.json()
+      setEditingProject(prev => ({
+        ...prev,
+        gallery_images: [...prev.gallery_images, data.image_id],
+      }))
+      
+    } catch (err) {
+      setError(language === 'es' ? 'Error al subir imagen' : 'Error uploading image')
+      console.error('Error uploading gallery image:', err)
+    } finally {
+      setUploadingGallery(false)
     }
   }
 
   const handleSave = async () => {
+    // Validate cover image
+    if (!hasValidCover(editingProject.cover_image)) {
+      setError(language === 'es' ? 'Debes subir una imagen de portada' : 'You must upload a cover image')
+      return
+    }
+
     setSaving(true)
     setError(null)
     try {
@@ -151,6 +229,23 @@ export default function AdminProyectosPage() {
   }
 
   const openEdit = (project: Project) => {
+    // Convert cover_image to ID or URL
+    let coverImage: number | string = 0
+    if (typeof project.cover_image === 'number') {
+      coverImage = project.cover_image
+    } else if (typeof project.cover_image === 'string' && project.cover_image.startsWith('http')) {
+      coverImage = project.cover_image
+    }
+    
+    // Convert gallery_images to array of IDs/URLs
+    const galleryImages = Array.isArray(project.gallery_images)
+      ? project.gallery_images.map(img => {
+          if (typeof img === 'number') return img
+          if (typeof img === 'string' && img.startsWith('http')) return img
+          return 0
+        }).filter(img => img !== 0)
+      : []
+    
     setEditingProject({
       id: project.id,
       slug: project.slug,
@@ -162,8 +257,8 @@ export default function AdminProyectosPage() {
       location: project.location,
       featured: project.featured,
       project_url: project.project_url || '',
-      cover_image: project.cover_image,
-      gallery_images: project.gallery_images,
+      cover_image: coverImage,
+      gallery_images: galleryImages,
       status: project.status,
     })
     setDialogOpen(true)
@@ -180,6 +275,8 @@ export default function AdminProyectosPage() {
       gallery_images: prev.gallery_images.filter((_, i) => i !== index),
     }))
   }
+
+  const coverSrc = getImageSrc(editingProject.cover_image)
 
   return (
     <div className="space-y-6">
@@ -288,62 +385,116 @@ export default function AdminProyectosPage() {
                 )}
               </div>
               
-              {/* Cover Image */}
-              <div>
-                <Label>Imagen de Portada</Label>
-                <div className="mt-2 flex flex-wrap gap-4">
-                  {editingProject.cover_image && (
-                    <div className="relative h-24 w-32 overflow-hidden rounded-2xl">
+              {/* Cover Image Upload */}
+              <div className="rounded-2xl border border-border bg-muted/30 p-4">
+                <Label className="mb-2 block">
+                  {language === 'es' ? 'Imagen de Portada (16:10)' : 'Cover Image (16:10)'}
+                </Label>
+                <p className="text-xs text-foreground/60 mb-3">
+                  {language === 'es' 
+                    ? 'Se redimensiona automaticamente a 1600x1000px' 
+                    : 'Automatically resized to 1600x1000px'}
+                </p>
+                <input
+                  type="file"
+                  ref={coverInputRef}
+                  onChange={handleCoverUpload}
+                  accept="image/*"
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => coverInputRef.current?.click()}
+                  disabled={uploadingCover}
+                  className="relative w-full aspect-[16/10] rounded-xl border-2 border-dashed border-border hover:border-foreground/50 transition-colors overflow-hidden group"
+                >
+                  {coverSrc ? (
+                    <>
                       <Image
-                        src={editingProject.cover_image}
+                        src={coverSrc}
                         alt="Cover"
                         fill
                         className="object-cover"
+                        unoptimized={coverSrc.startsWith('/api/images/')}
                       />
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <Upload className="h-8 w-8 text-white" />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-foreground/40">
+                      {uploadingCover ? (
+                        <Loader2 className="h-10 w-10 animate-spin" />
+                      ) : (
+                        <>
+                          <ImageIcon className="h-10 w-10 mb-2" />
+                          <span className="text-sm">
+                            {language === 'es' ? 'Subir portada' : 'Upload cover'}
+                          </span>
+                        </>
+                      )}
                     </div>
                   )}
-                  <label className="flex h-24 w-32 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border hover:border-foreground/50">
-                    <Upload className="h-6 w-6 text-foreground/50" />
-                    <span className="mt-1 text-xs text-foreground/50">
-                      {uploading ? 'Subiendo...' : 'Subir'}
-                    </span>
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept="image/*"
-                      onChange={e => handleUpload(e, 'cover')}
-                      disabled={uploading}
-                    />
-                  </label>
-                </div>
+                </button>
+                {!hasValidCover(editingProject.cover_image) && (
+                  <p className="text-xs text-amber-600 mt-2">
+                    {language === 'es' ? 'La portada es obligatoria' : 'Cover image is required'}
+                  </p>
+                )}
               </div>
 
-              {/* Gallery */}
-              <div>
-                <Label>Galeria</Label>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {editingProject.gallery_images.map((img, index) => (
-                    <div key={index} className="group relative h-20 w-24 overflow-hidden rounded-xl">
-                      <Image src={img} alt={`Gallery ${index}`} fill className="object-cover" />
-                      <button
-                        type="button"
-                        onClick={() => removeGalleryImage(index)}
-                        className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
-                      >
-                        <Trash2 className="h-4 w-4 text-white" />
-                      </button>
-                    </div>
-                  ))}
-                  <label className="flex h-20 w-24 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-border hover:border-foreground/50">
-                    <Plus className="h-5 w-5 text-foreground/50" />
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept="image/*"
-                      onChange={e => handleUpload(e, 'gallery')}
-                      disabled={uploading}
-                    />
-                  </label>
+              {/* Gallery Upload */}
+              <div className="rounded-2xl border border-border bg-muted/30 p-4">
+                <Label className="mb-2 block">
+                  {language === 'es' ? 'Galeria (1:1)' : 'Gallery (1:1)'}
+                </Label>
+                <p className="text-xs text-foreground/60 mb-3">
+                  {language === 'es' 
+                    ? 'Se redimensionan automaticamente a 1200x1200px' 
+                    : 'Automatically resized to 1200x1200px'}
+                </p>
+                <input
+                  type="file"
+                  ref={galleryInputRef}
+                  onChange={handleGalleryUpload}
+                  accept="image/*"
+                  className="hidden"
+                />
+                <div className="grid grid-cols-3 gap-2">
+                  {editingProject.gallery_images.map((img, index) => {
+                    const imgSrc = getImageSrc(img)
+                    if (!imgSrc) return null
+                    return (
+                      <div key={index} className="group relative aspect-square overflow-hidden rounded-xl">
+                        <Image 
+                          src={imgSrc} 
+                          alt={`Gallery ${index}`} 
+                          fill 
+                          className="object-cover"
+                          unoptimized={imgSrc.startsWith('/api/images/')}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeGalleryImage(index)}
+                          className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
+                        >
+                          <Trash2 className="h-5 w-5 text-white" />
+                        </button>
+                      </div>
+                    )
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => galleryInputRef.current?.click()}
+                    disabled={uploadingGallery}
+                    className="aspect-square rounded-xl border-2 border-dashed border-border hover:border-foreground/50 flex flex-col items-center justify-center text-foreground/40"
+                  >
+                    {uploadingGallery ? (
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                    ) : (
+                      <Plus className="h-6 w-6" />
+                    )}
+                  </button>
                 </div>
               </div>
 
@@ -375,11 +526,21 @@ export default function AdminProyectosPage() {
                 </div>
               </div>
 
+              {error && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
+                  {error}
+                </div>
+              )}
+
               <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
                 <Button variant="outline" onClick={() => setDialogOpen(false)} className="w-full sm:w-auto">
                   {t.admin.cancel}
                 </Button>
-                <Button onClick={handleSave} disabled={saving || !editingProject.cover_image} className="w-full sm:w-auto">
+                <Button 
+                  onClick={handleSave} 
+                  disabled={saving || !hasValidCover(editingProject.cover_image)} 
+                  className="w-full sm:w-auto"
+                >
                   {saving ? 'Guardando...' : t.admin.save}
                 </Button>
               </div>
@@ -389,7 +550,7 @@ export default function AdminProyectosPage() {
       </div>
 
       {/* Error Message */}
-      {error && (
+      {error && !dialogOpen && (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
           {error}
         </div>
@@ -403,53 +564,72 @@ export default function AdminProyectosPage() {
       ) : (
         /* Projects Grid */
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {projects.map(project => (
-            <Card key={project.id} className="overflow-hidden border-border">
-              <div className="relative aspect-[16/10]">
-                <Image
-                  src={project.cover_image}
-                  alt={language === 'es' ? project.title_es : project.title_en}
-                  fill
-                  className="object-cover"
-                />
-                <div className="absolute right-2 top-2 flex gap-1">
-                  {project.featured && (
-                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-yellow-400">
-                      <Star className="h-3 w-3 text-yellow-900" />
+          {projects.map(project => {
+            const coverSrc = getImageSrc(project.cover_image)
+            return (
+              <Card key={project.id} className="overflow-hidden border-border">
+                <div className="relative aspect-[16/10]">
+                  {coverSrc ? (
+                    <Image
+                      src={coverSrc}
+                      alt={language === 'es' ? project.title_es : project.title_en}
+                      fill
+                      className="object-cover"
+                      unoptimized={coverSrc.startsWith('/api/images/')}
+                    />
+                  ) : (
+                    <div className="absolute inset-0 bg-muted flex items-center justify-center">
+                      <ImageIcon className="h-12 w-12 text-muted-foreground/30" />
                     </div>
                   )}
-                  <Badge variant={project.status === 'publish' ? 'default' : 'secondary'} className="text-xs">
-                    {project.status === 'publish' ? t.admin.published : t.admin.draft}
-                  </Badge>
-                </div>
-              </div>
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <h3 className="font-medium truncate">
-                      {language === 'es' ? project.title_es : project.title_en}
-                    </h3>
-                    <div className="mt-1 flex items-center gap-1 text-sm text-foreground/60">
-                      <MapPin className="h-3 w-3 shrink-0" />
-                      <span className="truncate">{project.location}</span>
-                    </div>
+                  <div className="absolute right-2 top-2 flex gap-1">
+                    {project.featured && (
+                      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-yellow-400">
+                        <Star className="h-3 w-3 text-yellow-900" />
+                      </div>
+                    )}
+                    <Badge variant={project.status === 'publish' ? 'default' : 'secondary'} className="text-xs">
+                      {project.status === 'publish' ? t.admin.published : t.admin.draft}
+                    </Badge>
                   </div>
-                  <span className="shrink-0 text-xs text-foreground/50">
-                    {categoryLabels[project.category][language]}
-                  </span>
                 </div>
-                <div className="mt-3 flex gap-2">
-                  <Button variant="outline" size="sm" className="flex-1 h-9" onClick={() => openEdit(project)}>
-                    <Pencil className="mr-1 h-3 w-3" />
-                    {t.admin.edit}
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setDeleteId(project.id)}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-medium truncate">
+                        {language === 'es' ? project.title_es : project.title_en}
+                      </h3>
+                      <div className="mt-1 flex items-center gap-1 text-sm text-foreground/60">
+                        <MapPin className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{project.location}</span>
+                      </div>
+                    </div>
+                    <span className="shrink-0 text-xs text-foreground/50">
+                      {categoryLabels[project.category][language]}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <Button variant="outline" size="sm" className="flex-1 h-9" onClick={() => openEdit(project)}>
+                      <Pencil className="mr-1 h-3 w-3" />
+                      {t.admin.edit}
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setDeleteId(project.id)}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!loading && projects.length === 0 && (
+        <div className="rounded-2xl border border-border bg-muted/30 p-12 text-center">
+          <p className="text-foreground/60">
+            {language === 'es' ? 'No hay proyectos aun' : 'No projects yet'}
+          </p>
         </div>
       )}
 
