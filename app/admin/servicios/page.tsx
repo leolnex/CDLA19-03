@@ -1,21 +1,28 @@
-'use client'
+"use client";
 
-import { useEffect, useState, useRef } from 'react'
-import { useLanguage } from '@/components/providers/language-provider'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useEffect, useState, useRef } from "react";
+import Image from "next/image";
+import { useLanguage } from "@/components/providers/language-provider";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog'
+} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,249 +32,365 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { Plus, Pencil, Trash2, X, Upload, ImageIcon, Loader2 } from 'lucide-react'
-import Image from 'next/image'
-import type { Service, ServiceCategory } from '@/lib/types'
-import { categoryLabels } from '@/lib/types'
+} from "@/components/ui/alert-dialog";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  X,
+  Upload,
+  ImageIcon,
+  Loader2,
+} from "lucide-react";
+import type { Service, ServiceCategory } from "@/lib/types";
+import { categoryLabels } from "@/lib/types";
+
+type Lang = "es" | "en";
+type CategoryKey = keyof typeof categoryLabels;
+
+function normalizeCategoryKey(input: unknown): CategoryKey {
+  const raw = String(input ?? "")
+    .trim()
+    .toLowerCase();
+  const normalized = raw.replace(/_/g, "-").replace(/\s+/g, "-");
+
+  const aliases: Record<string, CategoryKey> = {
+    appmovil: "app-movil",
+    "app-movil": "app-movil",
+    "app-mobile": "app-movil",
+    mobile: "app-movil",
+
+    tarjetas: "tarjetas",
+    "tarjetas-presentacion": "tarjetas",
+    "tarjetas-de-presentacion": "tarjetas",
+
+    redes: "redes",
+    "redes-sociales": "redes",
+    social: "redes",
+    "social-media": "redes",
+
+    logo: "logo",
+    logos: "logo",
+
+    website: "website",
+    web: "website",
+    "sitio-web": "website",
+
+    otros: "otros",
+    other: "otros",
+  };
+
+  const key = (aliases[normalized] ??
+    (normalized as CategoryKey)) as CategoryKey;
+  return key in categoryLabels ? key : "website";
+}
+
+function safeLang(language: unknown): Lang {
+  return language === "en" ? "en" : "es";
+}
+
+function getCategoryLabel(cat: unknown, language: unknown): string {
+  const lang = safeLang(language);
+  const key = normalizeCategoryKey(cat);
+  return (
+    categoryLabels?.[key]?.[lang] ??
+    categoryLabels?.website?.[lang] ??
+    String(key)
+  );
+}
 
 const emptyService = {
-  slug: '',
-  category: 'website' as ServiceCategory,
-  customCategory: '',
-  title_es: '',
-  title_en: '',
-  desc_es: '',
-  desc_en: '',
-  ideal_es: '',
-  ideal_en: '',
-  bullets_es: [''],
-  bullets_en: [''],
-  hero_images: [0, 0, 0, 0] as number[], // IDs instead of URLs
-  status: 'publish' as const,
-}
+  slug: "",
+  category: "website" as ServiceCategory,
+  customCategory: "",
+  title_es: "",
+  title_en: "",
+  desc_es: "",
+  desc_en: "",
+  ideal_es: "",
+  ideal_en: "",
+  bullets_es: [""],
+  bullets_en: [""],
+  // allow both numeric IDs and legacy URLs (string)
+  hero_images: [0, 0, 0, 0] as Array<number | string>,
+  status: "publish" as const,
+};
 
 // Helper to check if a value is a valid image ID
 function isValidImageId(val: unknown): val is number {
-  return typeof val === 'number' && val > 0
+  return typeof val === "number" && val > 0;
 }
 
 // Helper to get image source - handles both IDs and legacy URLs
 function getImageSrc(val: unknown): string | null {
-  if (isValidImageId(val)) {
-    return `/api/images/${val}`
+  if (isValidImageId(val)) return `/api/images/${val}`;
+  if (typeof val === "string") {
+    const s = val.trim();
+    if (!s) return null;
+    if (s.startsWith("/api/images/")) return s;
+    if (s.startsWith("http")) return s;
+    if (/^\d+$/.test(s)) return `/api/images/${s}`;
   }
-  if (typeof val === 'string' && val.startsWith('http')) {
-    return val // Legacy URL support
-  }
-  return null
+  return null;
 }
 
 export default function AdminServiciosPage() {
-  const { language, t } = useLanguage()
-  const [services, setServices] = useState<Service[]>([])
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [deleteId, setDeleteId] = useState<string | null>(null)
-  const [editingService, setEditingService] = useState<typeof emptyService & { id?: string }>(emptyService)
-  const [loading, setLoading] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [uploadingSlot, setUploadingSlot] = useState<number | null>(null)
-  const fileInputRefs = useRef<(HTMLInputElement | null)[]>([null, null, null, null])
+  const { language, t } = useLanguage();
+  const lang = safeLang(language);
+  const [services, setServices] = useState<Service[]>([]);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [editingService, setEditingService] = useState<
+    typeof emptyService & { id?: string }
+  >(emptyService);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [uploadingSlot, setUploadingSlot] = useState<number | null>(null);
+  const fileInputRefs = useRef<(HTMLInputElement | null)[]>([
+    null,
+    null,
+    null,
+    null,
+  ]);
 
   useEffect(() => {
-    fetchServices()
-  }, [])
+    fetchServices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchServices = async () => {
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
     try {
-      const res = await fetch('/api/services?all=true')
-      if (!res.ok) throw new Error('Failed to fetch services')
-      const data = await res.json()
-      setServices(data)
+      const res = await fetch("/api/services?all=true");
+      if (!res.ok) throw new Error("Failed to fetch services");
+      const data = await res.json();
+      setServices(Array.isArray(data) ? data : []);
     } catch (err) {
-      setError(language === 'es' ? 'Error al cargar servicios' : 'Error loading services')
-      console.error('Error fetching services:', err)
+      setError(
+        lang === "es" ? "Error al cargar servicios" : "Error loading services",
+      );
+      console.error("Error fetching services:", err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleImageUpload = async (file: File, slotIndex: number) => {
-    setUploadingSlot(slotIndex)
-    setError(null)
-    
+    setUploadingSlot(slotIndex);
+    setError(null);
+
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('owner_type', 'service')
-      formData.append('role', 'service_hero')
-      formData.append('slot', String(slotIndex + 1))
-      if (editingService.id) {
-        formData.append('owner_id', editingService.id)
-      }
-      
-      const res = await fetch('/api/images/upload', {
-        method: 'POST',
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("owner_type", "service");
+      formData.append("role", "service_hero");
+      formData.append("slot", String(slotIndex + 1));
+      if (editingService.id) formData.append("owner_id", editingService.id);
+
+      const res = await fetch("/api/images/upload", {
+        method: "POST",
         body: formData,
-      })
-      
+      });
+
       if (!res.ok) {
-        const errData = await res.json()
-        throw new Error(errData.error || 'Upload failed')
+        let msg = "Upload failed";
+        try {
+          const errData = await res.json();
+          msg = errData?.error || msg;
+        } catch {}
+        throw new Error(msg);
       }
-      
-      const data = await res.json()
-      
-      // Update the hero_images array with the new image ID
-      const newImages = [...editingService.hero_images]
-      newImages[slotIndex] = data.image_id
-      setEditingService(prev => ({ ...prev, hero_images: newImages }))
-      
+
+      const data = await res.json();
+
+      const newImages = [...editingService.hero_images];
+      newImages[slotIndex] = data.image_id;
+      setEditingService((prev) => ({ ...prev, hero_images: newImages }));
     } catch (err) {
-      setError(language === 'es' ? 'Error al subir imagen' : 'Error uploading image')
-      console.error('Error uploading image:', err)
+      setError(
+        lang === "es" ? "Error al subir imagen" : "Error uploading image",
+      );
+      console.error("Error uploading image:", err);
     } finally {
-      setUploadingSlot(null)
+      setUploadingSlot(null);
     }
-  }
+  };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, slotIndex: number) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      handleImageUpload(file, slotIndex)
-    }
-    // Reset input
-    e.target.value = ''
-  }
+  const handleFileSelect = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    slotIndex: number,
+  ) => {
+    const file = e.target.files?.[0];
+    if (file) handleImageUpload(file, slotIndex);
+    e.target.value = "";
+  };
 
-  // Check if all 4 hero images are valid
-  const hasAllHeroImages = editingService.hero_images.every(img => isValidImageId(img) || (typeof img === 'string' && img.startsWith('http')))
+  const hasAllHeroImages = editingService.hero_images.every((img) => {
+    if (isValidImageId(img)) return true;
+    if (typeof img === "string" && img.trim().length > 0) return true;
+    return false;
+  });
 
   const handleSave = async () => {
-    // Validate hero images
     if (!hasAllHeroImages) {
-      setError(language === 'es' ? 'Debes subir las 4 imagenes del hero' : 'You must upload all 4 hero images')
-      return
+      setError(
+        lang === "es"
+          ? "Debes subir las 4 imagenes del hero"
+          : "You must upload all 4 hero images",
+      );
+      return;
     }
 
-    setSaving(true)
-    setError(null)
+    setSaving(true);
+    setError(null);
     try {
+      const normalizedCategory = normalizeCategoryKey(
+        editingService.category,
+      ) as ServiceCategory;
+
       const serviceData = {
         ...editingService,
-        slug: editingService.slug || editingService.title_es.toLowerCase().replace(/\s+/g, '-'),
-      }
+        category: normalizedCategory,
+        slug:
+          editingService.slug ||
+          editingService.title_es.toLowerCase().trim().replace(/\s+/g, "-"),
+        // keep DB naming consistent (your API may map it, but we keep both safe)
+        custom_category:
+          editingService.category === "otros"
+            ? editingService.customCategory || ""
+            : "",
+      };
 
-      const url = editingService.id ? `/api/services/${editingService.id}` : '/api/services'
-      const method = editingService.id ? 'PUT' : 'POST'
-      
+      const url = editingService.id
+        ? `/api/services/${editingService.id}`
+        : "/api/services";
+      const method = editingService.id ? "PUT" : "POST";
+
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(serviceData),
-      })
+      });
 
-      if (!res.ok) throw new Error('Failed to save service')
-      
-      // Refetch from server (source of truth)
-      await fetchServices()
-      setDialogOpen(false)
-      setEditingService(emptyService)
+      if (!res.ok) throw new Error("Failed to save service");
+
+      await fetchServices();
+      setDialogOpen(false);
+      setEditingService(emptyService);
     } catch (err) {
-      setError(language === 'es' ? 'Error al guardar servicio' : 'Error saving service')
-      console.error('Error saving service:', err)
+      setError(
+        lang === "es" ? "Error al guardar servicio" : "Error saving service",
+      );
+      console.error("Error saving service:", err);
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const handleDelete = async () => {
-    if (!deleteId) return
+    if (!deleteId) return;
     try {
-      const res = await fetch(`/api/services/${deleteId}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Failed to delete service')
-      await fetchServices()
+      const res = await fetch(`/api/services/${deleteId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to delete service");
+      await fetchServices();
     } catch (err) {
-      setError(language === 'es' ? 'Error al eliminar servicio' : 'Error deleting service')
-      console.error('Error deleting service:', err)
+      setError(
+        lang === "es" ? "Error al eliminar servicio" : "Error deleting service",
+      );
+      console.error("Error deleting service:", err);
     } finally {
-      setDeleteId(null)
+      setDeleteId(null);
     }
-  }
+  };
 
   const openEdit = (service: Service) => {
-    // Convert hero_images to array of IDs/URLs
-    const heroImages = Array.isArray(service.hero_images) 
-      ? service.hero_images.map(img => {
-          if (typeof img === 'number') return img
-          if (typeof img === 'string' && img.startsWith('http')) return img
-          return 0
+    const heroImages: Array<number | string> = Array.isArray(
+      service.hero_images,
+    )
+      ? service.hero_images.map((img) => {
+          if (typeof img === "number" && img > 0) return img;
+          if (typeof img === "string" && img.trim()) return img.trim();
+          return 0;
         })
-      : [0, 0, 0, 0]
-    
-    // Ensure we have exactly 4 slots
-    while (heroImages.length < 4) heroImages.push(0)
-    
+      : [0, 0, 0, 0];
+
+    while (heroImages.length < 4) heroImages.push(0);
+    if (heroImages.length > 4) heroImages.length = 4;
+
     setEditingService({
       id: service.id,
-      slug: service.slug,
-      category: service.category,
-      customCategory: service.custom_category || '',
-      title_es: service.title_es,
-      title_en: service.title_en,
-      desc_es: service.desc_es,
-      desc_en: service.desc_en,
-      ideal_es: service.ideal_es,
-      ideal_en: service.ideal_en,
-      bullets_es: service.bullets_es,
-      bullets_en: service.bullets_en,
-      hero_images: heroImages as number[],
+      slug: service.slug || "",
+      category: normalizeCategoryKey(
+        service.category,
+      ) as unknown as ServiceCategory,
+      customCategory: service.custom_category || "",
+      title_es: service.title_es || "",
+      title_en: service.title_en || "",
+      desc_es: service.desc_es || "",
+      desc_en: service.desc_en || "",
+      ideal_es: service.ideal_es || "",
+      ideal_en: service.ideal_en || "",
+      bullets_es:
+        Array.isArray(service.bullets_es) && service.bullets_es.length
+          ? service.bullets_es
+          : [""],
+      bullets_en:
+        Array.isArray(service.bullets_en) && service.bullets_en.length
+          ? service.bullets_en
+          : [""],
+      hero_images: heroImages,
       status: service.status,
-    })
-    setDialogOpen(true)
-  }
+    });
+    setDialogOpen(true);
+  };
 
   const openNew = () => {
-    setEditingService(emptyService)
-    setDialogOpen(true)
-  }
+    setEditingService(emptyService);
+    setDialogOpen(true);
+  };
 
-  const addBullet = (lang: 'es' | 'en') => {
-    if (lang === 'es') {
-      setEditingService(prev => ({ ...prev, bullets_es: [...prev.bullets_es, ''] }))
-    } else {
-      setEditingService(prev => ({ ...prev, bullets_en: [...prev.bullets_en, ''] }))
-    }
-  }
-
-  const removeBullet = (lang: 'es' | 'en', index: number) => {
-    if (lang === 'es') {
-      setEditingService(prev => ({
+  const addBullet = (which: "es" | "en") => {
+    if (which === "es")
+      setEditingService((prev) => ({
         ...prev,
-        bullets_es: prev.bullets_es.filter((_, i) => i !== index)
-      }))
-    } else {
-      setEditingService(prev => ({
+        bullets_es: [...prev.bullets_es, ""],
+      }));
+    else
+      setEditingService((prev) => ({
         ...prev,
-        bullets_en: prev.bullets_en.filter((_, i) => i !== index)
-      }))
-    }
-  }
+        bullets_en: [...prev.bullets_en, ""],
+      }));
+  };
 
-  const updateBullet = (lang: 'es' | 'en', index: number, value: string) => {
-    if (lang === 'es') {
-      const newBullets = [...editingService.bullets_es]
-      newBullets[index] = value
-      setEditingService(prev => ({ ...prev, bullets_es: newBullets }))
+  const removeBullet = (which: "es" | "en", index: number) => {
+    if (which === "es") {
+      setEditingService((prev) => ({
+        ...prev,
+        bullets_es: prev.bullets_es.filter((_, i) => i !== index),
+      }));
     } else {
-      const newBullets = [...editingService.bullets_en]
-      newBullets[index] = value
-      setEditingService(prev => ({ ...prev, bullets_en: newBullets }))
+      setEditingService((prev) => ({
+        ...prev,
+        bullets_en: prev.bullets_en.filter((_, i) => i !== index),
+      }));
     }
-  }
+  };
+
+  const updateBullet = (which: "es" | "en", index: number, value: string) => {
+    if (which === "es") {
+      const newBullets = [...editingService.bullets_es];
+      newBullets[index] = value;
+      setEditingService((prev) => ({ ...prev, bullets_es: newBullets }));
+    } else {
+      const newBullets = [...editingService.bullets_en];
+      newBullets[index] = value;
+      setEditingService((prev) => ({ ...prev, bullets_en: newBullets }));
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -277,6 +400,7 @@ export default function AdminServiciosPage() {
           <h1 className="text-2xl font-bold">{t.admin.services}</h1>
           <p className="text-foreground/70">{t.admin.servicesDesc}</p>
         </div>
+
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={openNew} className="w-full sm:w-auto">
@@ -284,28 +408,39 @@ export default function AdminServiciosPage() {
               {t.admin.newService}
             </Button>
           </DialogTrigger>
+
           <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingService.id ? t.admin.edit : t.admin.newService}
               </DialogTitle>
             </DialogHeader>
+
             <div className="space-y-4 py-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <Label>Slug</Label>
                   <Input
                     value={editingService.slug}
-                    onChange={e => setEditingService(prev => ({ ...prev, slug: e.target.value }))}
+                    onChange={(e) =>
+                      setEditingService((prev) => ({
+                        ...prev,
+                        slug: e.target.value,
+                      }))
+                    }
                     placeholder="mi-servicio"
                   />
                 </div>
+
                 <div>
                   <Label>Categoria</Label>
                   <Select
-                    value={editingService.category}
+                    value={String(editingService.category)}
                     onValueChange={(value: ServiceCategory) =>
-                      setEditingService(prev => ({ ...prev, category: value }))
+                      setEditingService((prev) => ({
+                        ...prev,
+                        category: value,
+                      }))
                     }
                   >
                     <SelectTrigger>
@@ -314,7 +449,7 @@ export default function AdminServiciosPage() {
                     <SelectContent>
                       {Object.entries(categoryLabels).map(([key, labels]) => (
                         <SelectItem key={key} value={key}>
-                          {labels[language]}
+                          {(labels as any)?.[lang] ?? key}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -322,18 +457,22 @@ export default function AdminServiciosPage() {
                 </div>
               </div>
 
-              {editingService.category === 'otros' && (
+              {editingService.category === "otros" && (
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950">
                   <Label className="text-amber-800 dark:text-amber-200">
                     Nombre personalizado de categoria
                   </Label>
                   <Input
                     value={editingService.customCategory}
-                    onChange={e => setEditingService(prev => ({ 
-                      ...prev, 
-                      customCategory: e.target.value,
-                      slug: e.target.value.toLowerCase().replace(/\s+/g, '-') || prev.slug
-                    }))}
+                    onChange={(e) =>
+                      setEditingService((prev) => ({
+                        ...prev,
+                        customCategory: e.target.value,
+                        slug:
+                          e.target.value.toLowerCase().replace(/\s+/g, "-") ||
+                          prev.slug,
+                      }))
+                    }
                     placeholder="Ej: Consultoria SEO, Marketing Digital..."
                     className="mt-2 border-amber-300 dark:border-amber-700"
                   />
@@ -345,23 +484,39 @@ export default function AdminServiciosPage() {
                   <Label>Titulo (ES)</Label>
                   <Input
                     value={editingService.title_es}
-                    onChange={e => setEditingService(prev => ({ ...prev, title_es: e.target.value }))}
+                    onChange={(e) =>
+                      setEditingService((prev) => ({
+                        ...prev,
+                        title_es: e.target.value,
+                      }))
+                    }
                   />
                 </div>
                 <div>
                   <Label>Title (EN)</Label>
                   <Input
                     value={editingService.title_en}
-                    onChange={e => setEditingService(prev => ({ ...prev, title_en: e.target.value }))}
+                    onChange={(e) =>
+                      setEditingService((prev) => ({
+                        ...prev,
+                        title_en: e.target.value,
+                      }))
+                    }
                   />
                 </div>
               </div>
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <Label>Descripcion (ES)</Label>
                   <Textarea
                     value={editingService.desc_es}
-                    onChange={e => setEditingService(prev => ({ ...prev, desc_es: e.target.value }))}
+                    onChange={(e) =>
+                      setEditingService((prev) => ({
+                        ...prev,
+                        desc_es: e.target.value,
+                      }))
+                    }
                     rows={3}
                   />
                 </div>
@@ -369,33 +524,55 @@ export default function AdminServiciosPage() {
                   <Label>Description (EN)</Label>
                   <Textarea
                     value={editingService.desc_en}
-                    onChange={e => setEditingService(prev => ({ ...prev, desc_en: e.target.value }))}
+                    onChange={(e) =>
+                      setEditingService((prev) => ({
+                        ...prev,
+                        desc_en: e.target.value,
+                      }))
+                    }
                     rows={3}
                   />
                 </div>
               </div>
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <Label>Ideal para (ES)</Label>
                   <Input
                     value={editingService.ideal_es}
-                    onChange={e => setEditingService(prev => ({ ...prev, ideal_es: e.target.value }))}
+                    onChange={(e) =>
+                      setEditingService((prev) => ({
+                        ...prev,
+                        ideal_es: e.target.value,
+                      }))
+                    }
                   />
                 </div>
                 <div>
                   <Label>Ideal for (EN)</Label>
                   <Input
                     value={editingService.ideal_en}
-                    onChange={e => setEditingService(prev => ({ ...prev, ideal_en: e.target.value }))}
+                    onChange={(e) =>
+                      setEditingService((prev) => ({
+                        ...prev,
+                        ideal_en: e.target.value,
+                      }))
+                    }
                   />
                 </div>
               </div>
 
+              {/* Bullets ES */}
               <div>
-                <div className="flex items-center justify-between mb-2">
+                <div className="mb-2 flex items-center justify-between">
                   <Label>Caracteristicas (ES)</Label>
-                  <Button type="button" variant="outline" size="sm" onClick={() => addBullet('es')}>
-                    <Plus className="h-3 w-3 mr-1" /> Agregar
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => addBullet("es")}
+                  >
+                    <Plus className="mr-1 h-3 w-3" /> Agregar
                   </Button>
                 </div>
                 <div className="space-y-2">
@@ -403,7 +580,9 @@ export default function AdminServiciosPage() {
                     <div key={index} className="flex gap-2">
                       <Input
                         value={bullet}
-                        onChange={e => updateBullet('es', index, e.target.value)}
+                        onChange={(e) =>
+                          updateBullet("es", index, e.target.value)
+                        }
                         placeholder={`Caracteristica ${index + 1}`}
                       />
                       {editingService.bullets_es.length > 1 && (
@@ -411,7 +590,7 @@ export default function AdminServiciosPage() {
                           type="button"
                           variant="ghost"
                           size="icon"
-                          onClick={() => removeBullet('es', index)}
+                          onClick={() => removeBullet("es", index)}
                         >
                           <X className="h-4 w-4" />
                         </Button>
@@ -421,11 +600,17 @@ export default function AdminServiciosPage() {
                 </div>
               </div>
 
+              {/* Bullets EN */}
               <div>
-                <div className="flex items-center justify-between mb-2">
+                <div className="mb-2 flex items-center justify-between">
                   <Label>Features (EN)</Label>
-                  <Button type="button" variant="outline" size="sm" onClick={() => addBullet('en')}>
-                    <Plus className="h-3 w-3 mr-1" /> Add
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => addBullet("en")}
+                  >
+                    <Plus className="mr-1 h-3 w-3" /> Add
                   </Button>
                 </div>
                 <div className="space-y-2">
@@ -433,7 +618,9 @@ export default function AdminServiciosPage() {
                     <div key={index} className="flex gap-2">
                       <Input
                         value={bullet}
-                        onChange={e => updateBullet('en', index, e.target.value)}
+                        onChange={(e) =>
+                          updateBullet("en", index, e.target.value)
+                        }
                         placeholder={`Feature ${index + 1}`}
                       />
                       {editingService.bullets_en.length > 1 && (
@@ -441,7 +628,7 @@ export default function AdminServiciosPage() {
                           type="button"
                           variant="ghost"
                           size="icon"
-                          onClick={() => removeBullet('en', index)}
+                          onClick={() => removeBullet("en", index)}
                         >
                           <X className="h-4 w-4" />
                         </Button>
@@ -454,33 +641,40 @@ export default function AdminServiciosPage() {
               {/* Hero Images Upload */}
               <div className="rounded-2xl border border-border bg-muted/30 p-4">
                 <Label className="mb-3 block">
-                  {language === 'es' ? 'Imagenes del Hero (4 imagenes 1:1)' : 'Hero Images (4 images 1:1)'}
+                  {lang === "es"
+                    ? "Imagenes del Hero (4 imagenes 1:1)"
+                    : "Hero Images (4 images 1:1)"}
                 </Label>
-                <p className="text-xs text-foreground/60 mb-3">
-                  {language === 'es' 
-                    ? 'Las imagenes se redimensionan automaticamente a 1200x1200px' 
-                    : 'Images are automatically resized to 1200x1200px'}
+                <p className="mb-3 text-xs text-foreground/60">
+                  {lang === "es"
+                    ? "Las imagenes se redimensionan automaticamente a 1200x1200px"
+                    : "Images are automatically resized to 1200x1200px"}
                 </p>
-                <div className="grid gap-3 grid-cols-2">
+
+                <div className="grid grid-cols-2 gap-3">
                   {[0, 1, 2, 3].map((slotIndex) => {
-                    const imgVal = editingService.hero_images[slotIndex]
-                    const imgSrc = getImageSrc(imgVal)
-                    const isUploading = uploadingSlot === slotIndex
-                    
+                    const imgVal = editingService.hero_images[slotIndex];
+                    const imgSrc = getImageSrc(imgVal);
+                    const isUploading = uploadingSlot === slotIndex;
+
                     return (
                       <div key={slotIndex} className="relative">
                         <input
                           type="file"
-                          ref={el => { fileInputRefs.current[slotIndex] = el }}
+                          ref={(el) => {
+                            fileInputRefs.current[slotIndex] = el;
+                          }}
                           onChange={(e) => handleFileSelect(e, slotIndex)}
                           accept="image/*"
                           className="hidden"
                         />
                         <button
                           type="button"
-                          onClick={() => fileInputRefs.current[slotIndex]?.click()}
+                          onClick={() =>
+                            fileInputRefs.current[slotIndex]?.click()
+                          }
                           disabled={isUploading}
-                          className="relative w-full aspect-square rounded-xl border-2 border-dashed border-border hover:border-foreground/50 transition-colors overflow-hidden group"
+                          className="group relative aspect-square w-full overflow-hidden rounded-xl border-2 border-dashed border-border transition-colors hover:border-foreground/50"
                         >
                           {imgSrc ? (
                             <>
@@ -489,9 +683,9 @@ export default function AdminServiciosPage() {
                                 alt={`Hero ${slotIndex + 1}`}
                                 fill
                                 className="object-cover"
-                                unoptimized={imgSrc.startsWith('/api/images/')}
+                                unoptimized={imgSrc.startsWith("/api/images/")}
                               />
-                              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
                                 <Upload className="h-6 w-6 text-white" />
                               </div>
                             </>
@@ -501,9 +695,11 @@ export default function AdminServiciosPage() {
                                 <Loader2 className="h-8 w-8 animate-spin" />
                               ) : (
                                 <>
-                                  <ImageIcon className="h-8 w-8 mb-1" />
+                                  <ImageIcon className="mb-1 h-8 w-8" />
                                   <span className="text-xs">
-                                    {language === 'es' ? `Imagen ${slotIndex + 1}` : `Image ${slotIndex + 1}`}
+                                    {lang === "es"
+                                      ? `Imagen ${slotIndex + 1}`
+                                      : `Image ${slotIndex + 1}`}
                                   </span>
                                 </>
                               )}
@@ -511,12 +707,15 @@ export default function AdminServiciosPage() {
                           )}
                         </button>
                       </div>
-                    )
+                    );
                   })}
                 </div>
+
                 {!hasAllHeroImages && (
-                  <p className="text-xs text-amber-600 mt-2">
-                    {language === 'es' ? 'Debes subir las 4 imagenes para guardar' : 'You must upload all 4 images to save'}
+                  <p className="mt-2 text-xs text-amber-600">
+                    {lang === "es"
+                      ? "Debes subir las 4 imagenes para guardar"
+                      : "You must upload all 4 images to save"}
                   </p>
                 )}
               </div>
@@ -525,8 +724,8 @@ export default function AdminServiciosPage() {
                 <Label>Estado</Label>
                 <Select
                   value={editingService.status}
-                  onValueChange={(value: 'draft' | 'publish') =>
-                    setEditingService(prev => ({ ...prev, status: value }))
+                  onValueChange={(value: "draft" | "publish") =>
+                    setEditingService((prev) => ({ ...prev, status: value }))
                   }
                 >
                   <SelectTrigger>
@@ -546,15 +745,19 @@ export default function AdminServiciosPage() {
               )}
 
               <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-                <Button variant="outline" onClick={() => setDialogOpen(false)} className="w-full sm:w-auto">
-                  {t.admin.cancel}
-                </Button>
-                <Button 
-                  onClick={handleSave} 
-                  disabled={saving || !hasAllHeroImages} 
+                <Button
+                  variant="outline"
+                  onClick={() => setDialogOpen(false)}
                   className="w-full sm:w-auto"
                 >
-                  {saving ? 'Guardando...' : t.admin.save}
+                  {t.admin.cancel}
+                </Button>
+                <Button
+                  onClick={handleSave}
+                  disabled={saving || !hasAllHeroImages}
+                  className="w-full sm:w-auto"
+                >
+                  {saving ? "Guardando..." : t.admin.save}
                 </Button>
               </div>
             </div>
@@ -586,30 +789,51 @@ export default function AdminServiciosPage() {
                 <div className="col-span-3 text-right">{t.admin.actions}</div>
               </div>
             </CardHeader>
+
             <CardContent className="divide-y divide-border p-0">
-              {services.map(service => (
-                <div key={service.id} className="grid grid-cols-12 items-center gap-4 p-4">
+              {services.map((service) => (
+                <div
+                  key={service.id}
+                  className="grid grid-cols-12 items-center gap-4 p-4"
+                >
                   <div className="col-span-5">
                     <h3 className="font-medium">
-                      {language === 'es' ? service.title_es : service.title_en}
+                      {lang === "es" ? service.title_es : service.title_en}
                     </h3>
                     <p className="line-clamp-1 text-sm text-foreground/60">
-                      {language === 'es' ? service.desc_es : service.desc_en}
+                      {lang === "es" ? service.desc_es : service.desc_en}
                     </p>
                   </div>
+
                   <div className="col-span-2 text-sm text-foreground/70">
-                    {categoryLabels[service.category][language]}
+                    {getCategoryLabel(service.category, lang)}
                   </div>
+
                   <div className="col-span-2">
-                    <Badge variant={service.status === 'publish' ? 'default' : 'secondary'}>
-                      {service.status === 'publish' ? t.admin.published : t.admin.draft}
+                    <Badge
+                      variant={
+                        service.status === "publish" ? "default" : "secondary"
+                      }
+                    >
+                      {service.status === "publish"
+                        ? t.admin.published
+                        : t.admin.draft}
                     </Badge>
                   </div>
+
                   <div className="col-span-3 flex justify-end gap-2">
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(service)}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => openEdit(service)}
+                    >
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => setDeleteId(service.id)}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setDeleteId(service.id)}
+                    >
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </div>
@@ -620,32 +844,50 @@ export default function AdminServiciosPage() {
 
           {/* Mobile Cards */}
           <div className="space-y-4 md:hidden">
-            {services.map(service => (
+            {services.map((service) => (
               <Card key={service.id} className="border-border">
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <h3 className="font-medium">
-                        {language === 'es' ? service.title_es : service.title_en}
+                        {lang === "es" ? service.title_es : service.title_en}
                       </h3>
                       <p className="mt-1 line-clamp-2 text-sm text-foreground/60">
-                        {language === 'es' ? service.desc_es : service.desc_en}
+                        {lang === "es" ? service.desc_es : service.desc_en}
                       </p>
                     </div>
-                    <Badge variant={service.status === 'publish' ? 'default' : 'secondary'} className="shrink-0">
-                      {service.status === 'publish' ? t.admin.published : t.admin.draft}
+                    <Badge
+                      variant={
+                        service.status === "publish" ? "default" : "secondary"
+                      }
+                      className="shrink-0"
+                    >
+                      {service.status === "publish"
+                        ? t.admin.published
+                        : t.admin.draft}
                     </Badge>
                   </div>
+
                   <div className="mt-3 flex items-center justify-between">
                     <span className="text-sm text-foreground/50">
-                      {categoryLabels[service.category][language]}
+                      {getCategoryLabel(service.category, lang)}
                     </span>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm" className="h-9 min-w-[44px]" onClick={() => openEdit(service)}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 min-w-[44px]"
+                        onClick={() => openEdit(service)}
+                      >
                         <Pencil className="mr-1 h-3 w-3" />
                         {t.admin.edit}
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setDeleteId(service.id)}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9"
+                        onClick={() => setDeleteId(service.id)}
+                      >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
@@ -659,7 +901,7 @@ export default function AdminServiciosPage() {
           {services.length === 0 && (
             <div className="rounded-2xl border border-border bg-muted/30 p-12 text-center">
               <p className="text-foreground/60">
-                {language === 'es' ? 'No hay servicios aun' : 'No services yet'}
+                {lang === "es" ? "No hay servicios aun" : "No services yet"}
               </p>
             </div>
           )}
@@ -677,12 +919,15 @@ export default function AdminServiciosPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t.admin.cancel}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground"
+            >
               {t.admin.delete}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  )
+  );
 }

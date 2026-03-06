@@ -1,23 +1,29 @@
-'use client'
+"use client";
 
-import { useEffect, useState, useRef } from 'react'
-import Image from 'next/image'
-import { useLanguage } from '@/components/providers/language-provider'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
-import { Badge } from '@/components/ui/badge'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useEffect, useState, useRef } from "react";
+import Image from "next/image";
+import { useLanguage } from "@/components/providers/language-provider";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog'
+} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,256 +33,383 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { Plus, Pencil, Trash2, Upload, Star, MapPin, Loader2, ImageIcon } from 'lucide-react'
-import type { Project, ServiceCategory } from '@/lib/types'
-import { categoryLabels } from '@/lib/types'
+} from "@/components/ui/alert-dialog";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Upload,
+  Star,
+  MapPin,
+  Loader2,
+  ImageIcon,
+} from "lucide-react";
+import type { Project, ServiceCategory } from "@/lib/types";
+import { categoryLabels } from "@/lib/types";
+
+type Lang = "es" | "en";
+type CategoryKey = keyof typeof categoryLabels;
+
+function safeLang(language: unknown): Lang {
+  return language === "en" ? "en" : "es";
+}
+
+function normalizeCategoryKey(input: unknown): CategoryKey {
+  const raw = String(input ?? "")
+    .trim()
+    .toLowerCase();
+  const normalized = raw.replace(/_/g, "-").replace(/\s+/g, "-");
+
+  const aliases: Record<string, CategoryKey> = {
+    appmovil: "app-movil",
+    "app-movil": "app-movil",
+    "app-mobile": "app-movil",
+    mobile: "app-movil",
+
+    tarjetas: "tarjetas",
+    "tarjetas-presentacion": "tarjetas",
+    "tarjetas-de-presentacion": "tarjetas",
+
+    redes: "redes",
+    "redes-sociales": "redes",
+    "social-media": "redes",
+    social: "redes",
+
+    logo: "logo",
+    logos: "logo",
+
+    website: "website",
+    web: "website",
+    "sitio-web": "website",
+
+    otros: "otros",
+    other: "otros",
+  };
+
+  const key = (aliases[normalized] ??
+    (normalized as CategoryKey)) as CategoryKey;
+  return key in categoryLabels ? key : "website";
+}
+
+function getCategoryLabel(cat: unknown, language: unknown): string {
+  const lang = safeLang(language);
+  const key = normalizeCategoryKey(cat);
+  return (
+    categoryLabels?.[key]?.[lang] ??
+    categoryLabels?.website?.[lang] ??
+    String(key)
+  );
+}
 
 const emptyProject = {
-  slug: '',
-  category: 'website' as ServiceCategory,
-  title_es: '',
-  title_en: '',
-  desc_es: '',
-  desc_en: '',
-  location: '',
+  slug: "",
+  category: "website" as ServiceCategory,
+  title_es: "",
+  title_en: "",
+  desc_es: "",
+  desc_en: "",
+  location: "",
   featured: false,
-  project_url: '',
+  project_url: "",
   cover_image: 0 as number | string, // Can be ID or legacy URL
   gallery_images: [] as (number | string)[], // Can be IDs or legacy URLs
-  status: 'publish' as const,
-}
+  status: "publish" as const,
+};
 
 // Helper to check if a value is a valid image ID
 function isValidImageId(val: unknown): val is number {
-  return typeof val === 'number' && val > 0
+  return typeof val === "number" && val > 0;
 }
 
-// Helper to get image source - handles both IDs and legacy URLs
+// Helper to get image source - handles IDs, numeric strings, and legacy URLs
 function getImageSrc(val: unknown): string | null {
-  if (isValidImageId(val)) {
-    return `/api/images/${val}`
+  if (isValidImageId(val)) return `/api/images/${val}`;
+
+  if (typeof val === "string") {
+    const s = val.trim();
+    if (!s) return null;
+    if (s.startsWith("/api/images/")) return s;
+    if (s.startsWith("http")) return s; // legacy URL
+    if (/^\d+$/.test(s)) return `/api/images/${s}`; // numeric id stored as string
   }
-  if (typeof val === 'string' && val.startsWith('http')) {
-    return val // Legacy URL support
-  }
-  return null
+
+  return null;
 }
 
 // Helper to check if cover image is valid
 function hasValidCover(val: unknown): boolean {
-  return isValidImageId(val) || (typeof val === 'string' && val.startsWith('http'))
+  if (isValidImageId(val)) return true;
+  if (typeof val === "string") {
+    const s = val.trim();
+    return (
+      s.startsWith("http") || s.startsWith("/api/images/") || /^\d+$/.test(s)
+    );
+  }
+  return false;
 }
 
 export default function AdminProyectosPage() {
-  const { language, t } = useLanguage()
-  const [projects, setProjects] = useState<Project[]>([])
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [deleteId, setDeleteId] = useState<string | null>(null)
-  const [editingProject, setEditingProject] = useState<typeof emptyProject & { id?: string }>(emptyProject)
-  const [loading, setLoading] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [uploadingCover, setUploadingCover] = useState(false)
-  const [uploadingGallery, setUploadingGallery] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const coverInputRef = useRef<HTMLInputElement>(null)
-  const galleryInputRef = useRef<HTMLInputElement>(null)
+  const { language, t } = useLanguage();
+  const lang = safeLang(language);
+
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [editingProject, setEditingProject] = useState<
+    typeof emptyProject & { id?: string }
+  >(emptyProject);
+
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const [uploadingGallery, setUploadingGallery] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetchProjects()
-  }, [])
+    fetchProjects();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchProjects = async () => {
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
     try {
-      const res = await fetch('/api/projects?all=true')
-      if (!res.ok) throw new Error('Failed to fetch projects')
-      const data = await res.json()
-      setProjects(data)
+      const res = await fetch("/api/projects?all=true");
+      if (!res.ok) throw new Error("Failed to fetch projects");
+      const data = await res.json();
+      setProjects(Array.isArray(data) ? data : []);
     } catch (err) {
-      setError(language === 'es' ? 'Error al cargar proyectos' : 'Error loading projects')
-      console.error('Error fetching projects:', err)
+      setError(
+        lang === "es" ? "Error al cargar proyectos" : "Error loading projects",
+      );
+      console.error("Error fetching projects:", err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    e.target.value = ''
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
 
-    setUploadingCover(true)
-    setError(null)
-    
+    setUploadingCover(true);
+    setError(null);
+
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('owner_type', 'project')
-      formData.append('role', 'project_cover')
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("owner_type", "project");
+      formData.append("role", "project_cover");
       if (editingProject.id) {
-        formData.append('owner_id', editingProject.id)
+        formData.append("owner_id", editingProject.id);
       }
-      
-      const res = await fetch('/api/images/upload', {
-        method: 'POST',
+
+      const res = await fetch("/api/images/upload", {
+        method: "POST",
         body: formData,
-      })
-      
+      });
+
       if (!res.ok) {
-        const errData = await res.json()
-        throw new Error(errData.error || 'Upload failed')
+        let msg = "Upload failed";
+        try {
+          const errData = await res.json();
+          msg = errData?.error || msg;
+        } catch {}
+        throw new Error(msg);
       }
-      
-      const data = await res.json()
-      setEditingProject(prev => ({ ...prev, cover_image: data.image_id }))
-      
+
+      const data = await res.json();
+      setEditingProject((prev) => ({ ...prev, cover_image: data.image_id }));
     } catch (err) {
-      setError(language === 'es' ? 'Error al subir imagen' : 'Error uploading image')
-      console.error('Error uploading cover:', err)
+      setError(
+        lang === "es" ? "Error al subir imagen" : "Error uploading image",
+      );
+      console.error("Error uploading cover:", err);
     } finally {
-      setUploadingCover(false)
+      setUploadingCover(false);
     }
-  }
+  };
 
-  const handleGalleryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    e.target.value = ''
+  const handleGalleryUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
 
-    setUploadingGallery(true)
-    setError(null)
-    
+    setUploadingGallery(true);
+    setError(null);
+
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('owner_type', 'project')
-      formData.append('role', 'project_gallery')
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("owner_type", "project");
+      formData.append("role", "project_gallery");
       if (editingProject.id) {
-        formData.append('owner_id', editingProject.id)
+        formData.append("owner_id", editingProject.id);
       }
-      
-      const res = await fetch('/api/images/upload', {
-        method: 'POST',
+
+      const res = await fetch("/api/images/upload", {
+        method: "POST",
         body: formData,
-      })
-      
+      });
+
       if (!res.ok) {
-        const errData = await res.json()
-        throw new Error(errData.error || 'Upload failed')
+        let msg = "Upload failed";
+        try {
+          const errData = await res.json();
+          msg = errData?.error || msg;
+        } catch {}
+        throw new Error(msg);
       }
-      
-      const data = await res.json()
-      setEditingProject(prev => ({
+
+      const data = await res.json();
+      setEditingProject((prev) => ({
         ...prev,
         gallery_images: [...prev.gallery_images, data.image_id],
-      }))
-      
+      }));
     } catch (err) {
-      setError(language === 'es' ? 'Error al subir imagen' : 'Error uploading image')
-      console.error('Error uploading gallery image:', err)
+      setError(
+        lang === "es" ? "Error al subir imagen" : "Error uploading image",
+      );
+      console.error("Error uploading gallery image:", err);
     } finally {
-      setUploadingGallery(false)
+      setUploadingGallery(false);
     }
-  }
+  };
 
   const handleSave = async () => {
-    // Validate cover image
     if (!hasValidCover(editingProject.cover_image)) {
-      setError(language === 'es' ? 'Debes subir una imagen de portada' : 'You must upload a cover image')
-      return
+      setError(
+        lang === "es"
+          ? "Debes subir una imagen de portada"
+          : "You must upload a cover image",
+      );
+      return;
     }
 
-    setSaving(true)
-    setError(null)
+    setSaving(true);
+    setError(null);
+
     try {
-      const url = editingProject.id ? `/api/projects/${editingProject.id}` : '/api/projects'
-      const method = editingProject.id ? 'PUT' : 'POST'
-      
+      const normalizedCategory = normalizeCategoryKey(
+        editingProject.category,
+      ) as unknown as ServiceCategory;
+
+      const payload = {
+        ...editingProject,
+        category: normalizedCategory,
+        slug:
+          editingProject.slug ||
+          editingProject.title_es.toLowerCase().trim().replace(/\s+/g, "-"),
+      };
+
+      const url = editingProject.id
+        ? `/api/projects/${editingProject.id}`
+        : "/api/projects";
+      const method = editingProject.id ? "PUT" : "POST";
+
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editingProject),
-      })
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-      if (!res.ok) throw new Error('Failed to save project')
-      
-      // Refetch from server (source of truth)
-      await fetchProjects()
-      setDialogOpen(false)
-      setEditingProject(emptyProject)
+      if (!res.ok) throw new Error("Failed to save project");
+
+      await fetchProjects();
+      setDialogOpen(false);
+      setEditingProject(emptyProject);
     } catch (err) {
-      setError(language === 'es' ? 'Error al guardar proyecto' : 'Error saving project')
-      console.error('Error saving project:', err)
+      setError(
+        lang === "es" ? "Error al guardar proyecto" : "Error saving project",
+      );
+      console.error("Error saving project:", err);
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const handleDelete = async () => {
-    if (!deleteId) return
+    if (!deleteId) return;
     try {
-      const res = await fetch(`/api/projects/${deleteId}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Failed to delete project')
-      await fetchProjects()
+      const res = await fetch(`/api/projects/${deleteId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to delete project");
+      await fetchProjects();
     } catch (err) {
-      setError(language === 'es' ? 'Error al eliminar proyecto' : 'Error deleting project')
-      console.error('Error deleting project:', err)
+      setError(
+        lang === "es" ? "Error al eliminar proyecto" : "Error deleting project",
+      );
+      console.error("Error deleting project:", err);
     } finally {
-      setDeleteId(null)
+      setDeleteId(null);
     }
-  }
+  };
 
   const openEdit = (project: Project) => {
-    // Convert cover_image to ID or URL
-    let coverImage: number | string = 0
-    if (typeof project.cover_image === 'number') {
-      coverImage = project.cover_image
-    } else if (typeof project.cover_image === 'string' && project.cover_image.startsWith('http')) {
-      coverImage = project.cover_image
-    }
-    
-    // Convert gallery_images to array of IDs/URLs
-    const galleryImages = Array.isArray(project.gallery_images)
-      ? project.gallery_images.map(img => {
-          if (typeof img === 'number') return img
-          if (typeof img === 'string' && img.startsWith('http')) return img
-          return 0
-        }).filter(img => img !== 0)
-      : []
-    
+    // cover_image: id number, numeric string, or legacy URL
+    let coverImage: number | string = 0;
+    if (typeof project.cover_image === "number")
+      coverImage = project.cover_image;
+    else if (
+      typeof project.cover_image === "string" &&
+      project.cover_image.trim()
+    )
+      coverImage = project.cover_image.trim();
+
+    // gallery_images: numbers/strings, ignore empties
+    const galleryImages: Array<number | string> = Array.isArray(
+      project.gallery_images,
+    )
+      ? (project.gallery_images
+          .map((img) => {
+            if (typeof img === "number" && img > 0) return img;
+            if (typeof img === "string" && img.trim()) return img.trim();
+            return null;
+          })
+          .filter(Boolean) as Array<number | string>)
+      : [];
+
     setEditingProject({
       id: project.id,
-      slug: project.slug,
-      category: project.category,
-      title_es: project.title_es,
-      title_en: project.title_en,
-      desc_es: project.desc_es,
-      desc_en: project.desc_en,
-      location: project.location,
-      featured: project.featured,
-      project_url: project.project_url || '',
+      slug: project.slug || "",
+      category: normalizeCategoryKey(
+        project.category,
+      ) as unknown as ServiceCategory,
+      title_es: project.title_es || "",
+      title_en: project.title_en || "",
+      desc_es: project.desc_es || "",
+      desc_en: project.desc_en || "",
+      location: project.location || "",
+      featured: Boolean(project.featured),
+      project_url: project.project_url || "",
       cover_image: coverImage,
       gallery_images: galleryImages,
       status: project.status,
-    })
-    setDialogOpen(true)
-  }
+    });
+
+    setDialogOpen(true);
+  };
 
   const openNew = () => {
-    setEditingProject(emptyProject)
-    setDialogOpen(true)
-  }
+    setEditingProject(emptyProject);
+    setDialogOpen(true);
+  };
 
   const removeGalleryImage = (index: number) => {
-    setEditingProject(prev => ({
+    setEditingProject((prev) => ({
       ...prev,
       gallery_images: prev.gallery_images.filter((_, i) => i !== index),
-    }))
-  }
+    }));
+  };
 
-  const coverSrc = getImageSrc(editingProject.cover_image)
+  const coverSrc = getImageSrc(editingProject.cover_image);
 
   return (
     <div className="space-y-6">
@@ -286,6 +419,7 @@ export default function AdminProyectosPage() {
           <h1 className="text-2xl font-bold">{t.admin.projects}</h1>
           <p className="text-foreground/70">{t.admin.projectsDesc}</p>
         </div>
+
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={openNew} className="w-full sm:w-auto">
@@ -293,28 +427,39 @@ export default function AdminProyectosPage() {
               {t.admin.newProject}
             </Button>
           </DialogTrigger>
+
           <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingProject.id ? t.admin.edit : t.admin.newProject}
               </DialogTitle>
             </DialogHeader>
+
             <div className="space-y-4 py-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <Label>Slug</Label>
                   <Input
                     value={editingProject.slug}
-                    onChange={e => setEditingProject(prev => ({ ...prev, slug: e.target.value }))}
+                    onChange={(e) =>
+                      setEditingProject((prev) => ({
+                        ...prev,
+                        slug: e.target.value,
+                      }))
+                    }
                     placeholder="mi-proyecto"
                   />
                 </div>
+
                 <div>
                   <Label>Categoria</Label>
                   <Select
-                    value={editingProject.category}
+                    value={String(editingProject.category)}
                     onValueChange={(value: ServiceCategory) =>
-                      setEditingProject(prev => ({ ...prev, category: value }))
+                      setEditingProject((prev) => ({
+                        ...prev,
+                        category: value,
+                      }))
                     }
                   >
                     <SelectTrigger>
@@ -323,35 +468,52 @@ export default function AdminProyectosPage() {
                     <SelectContent>
                       {Object.entries(categoryLabels).map(([key, labels]) => (
                         <SelectItem key={key} value={key}>
-                          {labels[language]}
+                          {(labels as any)?.[lang] ?? key}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <Label>Titulo (ES)</Label>
                   <Input
                     value={editingProject.title_es}
-                    onChange={e => setEditingProject(prev => ({ ...prev, title_es: e.target.value }))}
+                    onChange={(e) =>
+                      setEditingProject((prev) => ({
+                        ...prev,
+                        title_es: e.target.value,
+                      }))
+                    }
                   />
                 </div>
                 <div>
                   <Label>Title (EN)</Label>
                   <Input
                     value={editingProject.title_en}
-                    onChange={e => setEditingProject(prev => ({ ...prev, title_en: e.target.value }))}
+                    onChange={(e) =>
+                      setEditingProject((prev) => ({
+                        ...prev,
+                        title_en: e.target.value,
+                      }))
+                    }
                   />
                 </div>
               </div>
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <Label>Descripcion (ES)</Label>
                   <Textarea
                     value={editingProject.desc_es}
-                    onChange={e => setEditingProject(prev => ({ ...prev, desc_es: e.target.value }))}
+                    onChange={(e) =>
+                      setEditingProject((prev) => ({
+                        ...prev,
+                        desc_es: e.target.value,
+                      }))
+                    }
                     rows={3}
                   />
                 </div>
@@ -359,42 +521,63 @@ export default function AdminProyectosPage() {
                   <Label>Description (EN)</Label>
                   <Textarea
                     value={editingProject.desc_en}
-                    onChange={e => setEditingProject(prev => ({ ...prev, desc_en: e.target.value }))}
+                    onChange={(e) =>
+                      setEditingProject((prev) => ({
+                        ...prev,
+                        desc_en: e.target.value,
+                      }))
+                    }
                     rows={3}
                   />
                 </div>
               </div>
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <Label>Ubicacion</Label>
                   <Input
                     value={editingProject.location}
-                    onChange={e => setEditingProject(prev => ({ ...prev, location: e.target.value }))}
+                    onChange={(e) =>
+                      setEditingProject((prev) => ({
+                        ...prev,
+                        location: e.target.value,
+                      }))
+                    }
                     placeholder="Quito, Ecuador"
                   />
                 </div>
-                {editingProject.category === 'website' && (
+
+                {normalizeCategoryKey(editingProject.category) ===
+                  "website" && (
                   <div>
                     <Label>URL del Proyecto</Label>
                     <Input
                       value={editingProject.project_url}
-                      onChange={e => setEditingProject(prev => ({ ...prev, project_url: e.target.value }))}
+                      onChange={(e) =>
+                        setEditingProject((prev) => ({
+                          ...prev,
+                          project_url: e.target.value,
+                        }))
+                      }
                       placeholder="https://..."
                     />
                   </div>
                 )}
               </div>
-              
+
               {/* Cover Image Upload */}
               <div className="rounded-2xl border border-border bg-muted/30 p-4">
                 <Label className="mb-2 block">
-                  {language === 'es' ? 'Imagen de Portada (16:10)' : 'Cover Image (16:10)'}
+                  {lang === "es"
+                    ? "Imagen de Portada (16:10)"
+                    : "Cover Image (16:10)"}
                 </Label>
-                <p className="text-xs text-foreground/60 mb-3">
-                  {language === 'es' 
-                    ? 'Se redimensiona automaticamente a 1600x1000px' 
-                    : 'Automatically resized to 1600x1000px'}
+                <p className="mb-3 text-xs text-foreground/60">
+                  {lang === "es"
+                    ? "Se redimensiona automaticamente a 1600x1000px"
+                    : "Automatically resized to 1600x1000px"}
                 </p>
+
                 <input
                   type="file"
                   ref={coverInputRef}
@@ -402,11 +585,12 @@ export default function AdminProyectosPage() {
                   accept="image/*"
                   className="hidden"
                 />
+
                 <button
                   type="button"
                   onClick={() => coverInputRef.current?.click()}
                   disabled={uploadingCover}
-                  className="relative w-full aspect-[16/10] rounded-xl border-2 border-dashed border-border hover:border-foreground/50 transition-colors overflow-hidden group"
+                  className="group relative aspect-[16/10] w-full overflow-hidden rounded-xl border-2 border-dashed border-border transition-colors hover:border-foreground/50"
                 >
                   {coverSrc ? (
                     <>
@@ -415,9 +599,9 @@ export default function AdminProyectosPage() {
                         alt="Cover"
                         fill
                         className="object-cover"
-                        unoptimized={coverSrc.startsWith('/api/images/')}
+                        unoptimized={coverSrc.startsWith("/api/images/")}
                       />
-                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
                         <Upload className="h-8 w-8 text-white" />
                       </div>
                     </>
@@ -427,18 +611,21 @@ export default function AdminProyectosPage() {
                         <Loader2 className="h-10 w-10 animate-spin" />
                       ) : (
                         <>
-                          <ImageIcon className="h-10 w-10 mb-2" />
+                          <ImageIcon className="mb-2 h-10 w-10" />
                           <span className="text-sm">
-                            {language === 'es' ? 'Subir portada' : 'Upload cover'}
+                            {lang === "es" ? "Subir portada" : "Upload cover"}
                           </span>
                         </>
                       )}
                     </div>
                   )}
                 </button>
+
                 {!hasValidCover(editingProject.cover_image) && (
-                  <p className="text-xs text-amber-600 mt-2">
-                    {language === 'es' ? 'La portada es obligatoria' : 'Cover image is required'}
+                  <p className="mt-2 text-xs text-amber-600">
+                    {lang === "es"
+                      ? "La portada es obligatoria"
+                      : "Cover image is required"}
                   </p>
                 )}
               </div>
@@ -446,13 +633,14 @@ export default function AdminProyectosPage() {
               {/* Gallery Upload */}
               <div className="rounded-2xl border border-border bg-muted/30 p-4">
                 <Label className="mb-2 block">
-                  {language === 'es' ? 'Galeria (1:1)' : 'Gallery (1:1)'}
+                  {lang === "es" ? "Galeria (1:1)" : "Gallery (1:1)"}
                 </Label>
-                <p className="text-xs text-foreground/60 mb-3">
-                  {language === 'es' 
-                    ? 'Se redimensionan automaticamente a 1200x1200px' 
-                    : 'Automatically resized to 1200x1200px'}
+                <p className="mb-3 text-xs text-foreground/60">
+                  {lang === "es"
+                    ? "Se redimensionan automaticamente a 1200x1200px"
+                    : "Automatically resized to 1200x1200px"}
                 </p>
+
                 <input
                   type="file"
                   ref={galleryInputRef}
@@ -460,18 +648,23 @@ export default function AdminProyectosPage() {
                   accept="image/*"
                   className="hidden"
                 />
+
                 <div className="grid grid-cols-3 gap-2">
                   {editingProject.gallery_images.map((img, index) => {
-                    const imgSrc = getImageSrc(img)
-                    if (!imgSrc) return null
+                    const imgSrc = getImageSrc(img);
+                    if (!imgSrc) return null;
+
                     return (
-                      <div key={index} className="group relative aspect-square overflow-hidden rounded-xl">
-                        <Image 
-                          src={imgSrc} 
-                          alt={`Gallery ${index}`} 
-                          fill 
+                      <div
+                        key={index}
+                        className="group relative aspect-square overflow-hidden rounded-xl"
+                      >
+                        <Image
+                          src={imgSrc}
+                          alt={`Gallery ${index}`}
+                          fill
                           className="object-cover"
-                          unoptimized={imgSrc.startsWith('/api/images/')}
+                          unoptimized={imgSrc.startsWith("/api/images/")}
                         />
                         <button
                           type="button"
@@ -481,13 +674,14 @@ export default function AdminProyectosPage() {
                           <Trash2 className="h-5 w-5 text-white" />
                         </button>
                       </div>
-                    )
+                    );
                   })}
+
                   <button
                     type="button"
                     onClick={() => galleryInputRef.current?.click()}
                     disabled={uploadingGallery}
-                    className="aspect-square rounded-xl border-2 border-dashed border-border hover:border-foreground/50 flex flex-col items-center justify-center text-foreground/40"
+                    className="flex aspect-square flex-col items-center justify-center rounded-xl border-2 border-dashed border-border text-foreground/40 transition-colors hover:border-foreground/50"
                   >
                     {uploadingGallery ? (
                       <Loader2 className="h-6 w-6 animate-spin" />
@@ -502,24 +696,30 @@ export default function AdminProyectosPage() {
                 <div className="flex items-center gap-2">
                   <Switch
                     checked={editingProject.featured}
-                    onCheckedChange={checked =>
-                      setEditingProject(prev => ({ ...prev, featured: checked }))
+                    onCheckedChange={(checked) =>
+                      setEditingProject((prev) => ({
+                        ...prev,
+                        featured: checked,
+                      }))
                     }
                   />
                   <Label>Destacado</Label>
                 </div>
+
                 <div className="flex-1">
                   <Select
                     value={editingProject.status}
-                    onValueChange={(value: 'draft' | 'publish') =>
-                      setEditingProject(prev => ({ ...prev, status: value }))
+                    onValueChange={(value: "draft" | "publish") =>
+                      setEditingProject((prev) => ({ ...prev, status: value }))
                     }
                   >
                     <SelectTrigger className="w-full sm:w-32">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="publish">{t.admin.published}</SelectItem>
+                      <SelectItem value="publish">
+                        {t.admin.published}
+                      </SelectItem>
                       <SelectItem value="draft">{t.admin.draft}</SelectItem>
                     </SelectContent>
                   </Select>
@@ -533,15 +733,21 @@ export default function AdminProyectosPage() {
               )}
 
               <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-                <Button variant="outline" onClick={() => setDialogOpen(false)} className="w-full sm:w-auto">
-                  {t.admin.cancel}
-                </Button>
-                <Button 
-                  onClick={handleSave} 
-                  disabled={saving || !hasValidCover(editingProject.cover_image)} 
+                <Button
+                  variant="outline"
+                  onClick={() => setDialogOpen(false)}
                   className="w-full sm:w-auto"
                 >
-                  {saving ? 'Guardando...' : t.admin.save}
+                  {t.admin.cancel}
+                </Button>
+                <Button
+                  onClick={handleSave}
+                  disabled={
+                    saving || !hasValidCover(editingProject.cover_image)
+                  }
+                  className="w-full sm:w-auto"
+                >
+                  {saving ? "Guardando..." : t.admin.save}
                 </Button>
               </div>
             </div>
@@ -562,64 +768,85 @@ export default function AdminProyectosPage() {
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-foreground/20 border-t-foreground" />
         </div>
       ) : (
-        /* Projects Grid */
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {projects.map(project => {
-            const coverSrc = getImageSrc(project.cover_image)
+          {projects.map((project) => {
+            const coverSrc2 = getImageSrc(project.cover_image);
+
             return (
               <Card key={project.id} className="overflow-hidden border-border">
                 <div className="relative aspect-[16/10]">
-                  {coverSrc ? (
+                  {coverSrc2 ? (
                     <Image
-                      src={coverSrc}
-                      alt={language === 'es' ? project.title_es : project.title_en}
+                      src={coverSrc2}
+                      alt={lang === "es" ? project.title_es : project.title_en}
                       fill
                       className="object-cover"
-                      unoptimized={coverSrc.startsWith('/api/images/')}
+                      unoptimized={coverSrc2.startsWith("/api/images/")}
                     />
                   ) : (
-                    <div className="absolute inset-0 bg-muted flex items-center justify-center">
+                    <div className="absolute inset-0 flex items-center justify-center bg-muted">
                       <ImageIcon className="h-12 w-12 text-muted-foreground/30" />
                     </div>
                   )}
+
                   <div className="absolute right-2 top-2 flex gap-1">
                     {project.featured && (
                       <div className="flex h-6 w-6 items-center justify-center rounded-full bg-yellow-400">
                         <Star className="h-3 w-3 text-yellow-900" />
                       </div>
                     )}
-                    <Badge variant={project.status === 'publish' ? 'default' : 'secondary'} className="text-xs">
-                      {project.status === 'publish' ? t.admin.published : t.admin.draft}
+                    <Badge
+                      variant={
+                        project.status === "publish" ? "default" : "secondary"
+                      }
+                      className="text-xs"
+                    >
+                      {project.status === "publish"
+                        ? t.admin.published
+                        : t.admin.draft}
                     </Badge>
                   </div>
                 </div>
+
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <h3 className="font-medium truncate">
-                        {language === 'es' ? project.title_es : project.title_en}
+                      <h3 className="truncate font-medium">
+                        {lang === "es" ? project.title_es : project.title_en}
                       </h3>
                       <div className="mt-1 flex items-center gap-1 text-sm text-foreground/60">
                         <MapPin className="h-3 w-3 shrink-0" />
                         <span className="truncate">{project.location}</span>
                       </div>
                     </div>
+
                     <span className="shrink-0 text-xs text-foreground/50">
-                      {categoryLabels[project.category][language]}
+                      {getCategoryLabel(project.category, lang)}
                     </span>
                   </div>
+
                   <div className="mt-3 flex gap-2">
-                    <Button variant="outline" size="sm" className="flex-1 h-9" onClick={() => openEdit(project)}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 flex-1"
+                      onClick={() => openEdit(project)}
+                    >
                       <Pencil className="mr-1 h-3 w-3" />
                       {t.admin.edit}
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setDeleteId(project.id)}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9"
+                      onClick={() => setDeleteId(project.id)}
+                    >
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </div>
                 </CardContent>
               </Card>
-            )
+            );
           })}
         </div>
       )}
@@ -628,7 +855,7 @@ export default function AdminProyectosPage() {
       {!loading && projects.length === 0 && (
         <div className="rounded-2xl border border-border bg-muted/30 p-12 text-center">
           <p className="text-foreground/60">
-            {language === 'es' ? 'No hay proyectos aun' : 'No projects yet'}
+            {lang === "es" ? "No hay proyectos aun" : "No projects yet"}
           </p>
         </div>
       )}
@@ -638,14 +865,23 @@ export default function AdminProyectosPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t.admin.confirm}</AlertDialogTitle>
-            <AlertDialogDescription>{t.admin.deleteConfirm}</AlertDialogDescription>
+            <AlertDialogDescription>
+              {t.admin.deleteConfirm}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
-            <AlertDialogCancel className="w-full sm:w-auto">{t.admin.cancel}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="w-full sm:w-auto">{t.admin.delete}</AlertDialogAction>
+            <AlertDialogCancel className="w-full sm:w-auto">
+              {t.admin.cancel}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="w-full sm:w-auto"
+            >
+              {t.admin.delete}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  )
+  );
 }
