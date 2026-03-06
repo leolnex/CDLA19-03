@@ -1,39 +1,25 @@
 import { NextResponse } from "next/server";
 import { updateService, deleteService } from "@/lib/data";
 
-export const runtime = "nodejs"; // mssql SOLO funciona bien en Node
-
-function normalizeServiceUpdates(body: any) {
-  // Acepta camelCase del frontend y lo convierte a snake_case que usa la DB
-  const normalized = { ...body };
-
-  if (body.customCategory !== undefined && body.custom_category === undefined) {
-    normalized.custom_category = body.customCategory;
-  }
-
-  // Opcional: limpiar campos que no quieres mandar a DB
-  delete normalized.customCategory;
-
-  return normalized;
-}
-
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const id = params.id;
+    // ✅ FIX Next.js 16: params viene como Promise
+    const { id } = await params;
 
-    // Validación mínima
+    // Validación básica del id
     const n = Number(id);
-    if (!Number.isFinite(n)) {
-      return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+    if (!Number.isFinite(n) || n <= 0) {
+      return NextResponse.json(
+        { error: "Invalid service id" },
+        { status: 400 },
+      );
     }
 
     const body = await request.json();
-    const updates = normalizeServiceUpdates(body);
-
-    const service = await updateService(id, updates);
+    const service = await updateService(String(id), body);
 
     if (!service) {
       return NextResponse.json({ error: "Service not found" }, { status: 404 });
@@ -42,31 +28,30 @@ export async function PUT(
     return NextResponse.json(service);
   } catch (error: any) {
     console.error("Error updating service:", error);
-
-    // Devuelve algo útil para debug (sin filtrar secretos)
-    const message =
-      typeof error?.message === "string" ? error.message : "Failed to update service";
-
     return NextResponse.json(
-      { error: "Failed to update service", details: message },
-      { status: 500 }
+      { error: error?.message || "Failed to update service" },
+      { status: 500 },
     );
   }
 }
 
 export async function DELETE(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const id = params.id;
+    // ✅ FIX Next.js 16: params viene como Promise
+    const { id } = await params;
 
     const n = Number(id);
-    if (!Number.isFinite(n)) {
-      return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+    if (!Number.isFinite(n) || n <= 0) {
+      return NextResponse.json(
+        { error: "Invalid service id" },
+        { status: 400 },
+      );
     }
 
-    const success = await deleteService(id);
+    const success = await deleteService(String(id));
 
     if (!success) {
       return NextResponse.json({ error: "Service not found" }, { status: 404 });
@@ -75,13 +60,9 @@ export async function DELETE(
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("Error deleting service:", error);
-
-    const message =
-      typeof error?.message === "string" ? error.message : "Failed to delete service";
-
     return NextResponse.json(
-      { error: "Failed to delete service", details: message },
-      { status: 500 }
+      { error: error?.message || "Failed to delete service" },
+      { status: 500 },
     );
   }
 }

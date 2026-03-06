@@ -1,91 +1,128 @@
-'use client'
+"use client";
 
-import { useEffect, useState, useCallback, useRef } from 'react'
-import Link from 'next/link'
-import Image from 'next/image'
-import { useLanguage } from '@/components/providers/language-provider'
-import { Button } from '@/components/ui/button'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
-import type { Service } from '@/lib/types'
-import { categoryLabels } from '@/lib/types'
+import { useEffect, useState, useCallback, useRef } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { useLanguage } from "@/components/providers/language-provider";
+import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import type { Service } from "@/lib/types";
+import { categoryLabels } from "@/lib/types";
 
 const fallbackImages = [
-  'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=600&fit=crop',
-  'https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=800&h=600&fit=crop',
-  'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&h=600&fit=crop',
-  'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800&h=600&fit=crop',
-]
+  "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=600&fit=crop",
+  "https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=800&h=600&fit=crop",
+  "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&h=600&fit=crop",
+  "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800&h=600&fit=crop",
+];
+
+// Normalize category keys coming from DB (legacy values)
+function normalizeCategoryKey(value?: string | null): string {
+  if (!value) return "website";
+  const v = String(value).toLowerCase().trim();
+
+  if (v === "app-movil" || v === "app móvil" || v === "appmovil" || v === "app")
+    return "app_movil";
+  if (v === "web" || v === "website" || v.includes("sitio")) return "website";
+  if (v.includes("logo")) return "logo";
+  if (v.includes("red")) return "redes";
+  if (v.includes("tarjet")) return "tarjetas";
+  if (v.includes("otro")) return "otros";
+
+  return v;
+}
+
+function getCategoryLabelSafe(category: any, language: "es" | "en"): string {
+  const key = normalizeCategoryKey(category);
+  const labels = (categoryLabels as any)[key];
+  return labels?.[language] ?? labels?.es ?? labels?.en ?? key;
+}
 
 // Helper to get image source - handles both IDs and legacy URLs
 function getHeroImageSrc(val: unknown): string {
-  if (typeof val === 'number' && val > 0) {
-    return `/api/images/${val}`
+  if (typeof val === "number" && Number.isFinite(val) && val > 0) {
+    return `/api/images/${val}`;
   }
-  if (typeof val === 'string' && val.startsWith('http')) {
-    return val
+  if (typeof val === "string") {
+    const s = val.trim();
+    if (s.startsWith("/api/images/")) return s;
+    if (s.startsWith("http://") || s.startsWith("https://")) return s;
+    if (/^\d+$/.test(s)) return `/api/images/${s}`; // numeric ID stored as string
   }
-  return fallbackImages[0]
+  return fallbackImages[0];
 }
 
 export function HeroSection() {
-  const { language, t } = useLanguage()
-  const [services, setServices] = useState<Service[]>([])
-  const [currentSlide, setCurrentSlide] = useState(0)
-  const [isAutoPlaying, setIsAutoPlaying] = useState(true)
-  const [isPaused, setIsPaused] = useState(false)
-  const carouselRef = useRef<HTMLDivElement>(null)
+  const { language, t } = useLanguage();
+  const [services, setServices] = useState<Service[]>([]);
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [isAutoPlaying] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
+  const carouselRef = useRef<HTMLDivElement>(null);
 
   // Fetch services from database
   useEffect(() => {
-    fetch('/api/services')
-      .then(res => res.json())
-      .then(data => {
-        setServices(data.filter((s: Service) => s.status === 'publish'))
+    fetch("/api/services", { cache: "no-store" })
+      .then(async (res) => {
+        if (!res.ok)
+          throw new Error(`Failed to fetch services (${res.status})`);
+        return res.json();
       })
-      .catch(console.error)
-  }, [])
+      .then((data) => {
+        const published = (Array.isArray(data) ? data : []).filter(
+          (s: Service) => s?.status === "publish",
+        );
+        setServices(published);
+        setCurrentSlide(0);
+      })
+      .catch((err) => {
+        console.error("Error fetching services:", err);
+        setServices([]);
+      });
+  }, []);
 
-  // Auto-advance carousel
   const nextSlide = useCallback(() => {
-    if (services.length > 0) {
-      setCurrentSlide(prev => (prev + 1) % services.length)
-    }
-  }, [services.length])
+    if (services.length > 0)
+      setCurrentSlide((prev) => (prev + 1) % services.length);
+  }, [services.length]);
 
   const prevSlide = useCallback(() => {
-    if (services.length > 0) {
-      setCurrentSlide(prev => (prev - 1 + services.length) % services.length)
-    }
-  }, [services.length])
+    if (services.length > 0)
+      setCurrentSlide((prev) => (prev - 1 + services.length) % services.length);
+  }, [services.length]);
 
+  // Auto-advance
   useEffect(() => {
-    if (!isAutoPlaying || isPaused || services.length === 0) return
-    const interval = setInterval(nextSlide, 5000)
-    return () => clearInterval(interval)
-  }, [isAutoPlaying, isPaused, nextSlide, services.length])
+    if (!isAutoPlaying || isPaused || services.length === 0) return;
+    const interval = setInterval(nextSlide, 5000);
+    return () => clearInterval(interval);
+  }, [isAutoPlaying, isPaused, nextSlide, services.length]);
 
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!carouselRef.current?.contains(document.activeElement)) return
-      if (e.key === 'ArrowLeft') {
-        prevSlide()
-        setIsPaused(true)
-      } else if (e.key === 'ArrowRight') {
-        nextSlide()
-        setIsPaused(true)
+      if (!carouselRef.current?.contains(document.activeElement)) return;
+      if (e.key === "ArrowLeft") {
+        prevSlide();
+        setIsPaused(true);
+      } else if (e.key === "ArrowRight") {
+        nextSlide();
+        setIsPaused(true);
       }
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [nextSlide, prevSlide])
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [nextSlide, prevSlide]);
 
-  const currentService = services[currentSlide]
-  
-  // Get hero images from service or use fallback
-  const heroImages = currentService?.hero_images?.length === 4 
-    ? currentService.hero_images 
-    : fallbackImages
+  const currentService = services[currentSlide];
+
+  // Ensure hero images always has 4 slots
+  const rawHeroImages = Array.isArray(currentService?.hero_images)
+    ? currentService!.hero_images
+    : [];
+  const heroImages = (
+    rawHeroImages.length === 4 ? rawHeroImages : fallbackImages
+  ).slice(0, 4);
 
   if (services.length === 0) {
     return (
@@ -96,11 +133,26 @@ export function HeroSection() {
           </div>
         </div>
       </section>
-    )
+    );
   }
 
+  const serviceTitle =
+    language === "es"
+      ? currentService?.title_es || ""
+      : currentService?.title_en || currentService?.title_es || "";
+
+  const serviceDesc =
+    language === "es"
+      ? currentService?.desc_es || ""
+      : currentService?.desc_en || currentService?.desc_es || "";
+
+  // Use normalized category for labels & links
+  const categoryKey = normalizeCategoryKey(
+    currentService?.category || "website",
+  );
+
   return (
-    <section 
+    <section
       className="py-16 md:py-24"
       ref={carouselRef}
       onMouseEnter={() => setIsPaused(true)}
@@ -108,22 +160,25 @@ export function HeroSection() {
       onFocus={() => setIsPaused(true)}
       onBlur={() => setIsPaused(false)}
       role="region"
-      aria-label={language === 'es' ? 'Carrusel de servicios' : 'Services carousel'}
+      aria-label={
+        language === "es" ? "Carrusel de servicios" : "Services carousel"
+      }
       aria-roledescription="carousel"
     >
       <div className="mx-auto max-w-[1280px] px-4 md:px-6 lg:px-8">
         <div className="grid items-center gap-12 lg:grid-cols-2">
           {/* Text Content - Left Column */}
-          <div 
+          <div
             className="space-y-6"
             role="group"
             aria-roledescription="slide"
-            aria-label={`${currentSlide + 1} ${language === 'es' ? 'de' : 'of'} ${services.length}`}
+            aria-label={`${currentSlide + 1} ${language === "es" ? "de" : "of"} ${services.length}`}
           >
             {/* Service Category Badge */}
             <div className="flex items-center gap-2">
               <span className="rounded-full bg-foreground px-3 py-1 text-xs font-medium text-background">
-                {currentService?.custom_category || categoryLabels[currentService?.category || 'website'][language]}
+                {currentService?.custom_category ||
+                  getCategoryLabelSafe(categoryKey, language)}
               </span>
               <span className="text-sm text-foreground/50">
                 {currentSlide + 1} / {services.length}
@@ -132,29 +187,33 @@ export function HeroSection() {
 
             {/* Service Title */}
             <h1 className="text-4xl font-bold leading-tight tracking-tight md:text-5xl lg:text-6xl">
-              {language === 'es' ? currentService?.title_es : currentService?.title_en}
+              {serviceTitle}
             </h1>
 
             {/* Service Description */}
-            <p className="max-w-lg text-lg text-foreground/70">
-              {language === 'es' ? currentService?.desc_es : currentService?.desc_en}
-            </p>
+            <p className="max-w-lg text-lg text-foreground/70">{serviceDesc}</p>
 
             {/* CTA Buttons */}
             <div className="flex flex-wrap gap-3">
               <Button asChild size="lg">
-                <Link href={`/servicios?categoria=${currentService?.category}`}>
-                  {language === 'es' ? 'Ver servicio' : 'View service'}
+                <Link
+                  href={`/servicios?categoria=${encodeURIComponent(categoryKey)}`}
+                >
+                  {language === "es" ? "Ver servicio" : "View service"}
                 </Link>
               </Button>
               <Button variant="outline" asChild size="lg">
-                <Link href={`/proyectos?categoria=${currentService?.category}`}>
-                  {language === 'es' ? 'Ver proyectos' : 'View projects'}
+                <Link
+                  href={`/proyectos?categoria=${encodeURIComponent(categoryKey)}`}
+                >
+                  {language === "es" ? "Ver proyectos" : "View projects"}
                 </Link>
               </Button>
               <Button variant="ghost" asChild size="lg">
-                <Link href={`/contacto?servicio=${currentService?.category}`}>
-                  {language === 'es' ? 'Contactar' : 'Contact'}
+                <Link
+                  href={`/contacto?servicio=${encodeURIComponent(categoryKey)}`}
+                >
+                  {language === "es" ? "Contactar" : "Contact"}
                 </Link>
               </Button>
             </div>
@@ -167,10 +226,10 @@ export function HeroSection() {
                   size="icon"
                   className="h-10 w-10"
                   onClick={() => {
-                    prevSlide()
-                    setIsPaused(true)
+                    prevSlide();
+                    setIsPaused(true);
                   }}
-                  aria-label={language === 'es' ? 'Anterior' : 'Previous'}
+                  aria-label={language === "es" ? "Anterior" : "Previous"}
                 >
                   <ChevronLeft className="h-5 w-5" />
                 </Button>
@@ -179,31 +238,39 @@ export function HeroSection() {
                   size="icon"
                   className="h-10 w-10"
                   onClick={() => {
-                    nextSlide()
-                    setIsPaused(true)
+                    nextSlide();
+                    setIsPaused(true);
                   }}
-                  aria-label={language === 'es' ? 'Siguiente' : 'Next'}
+                  aria-label={language === "es" ? "Siguiente" : "Next"}
                 >
                   <ChevronRight className="h-5 w-5" />
                 </Button>
               </div>
 
               {/* Dots */}
-              <div className="flex gap-2" role="tablist" aria-label={language === 'es' ? 'Indicadores del carrusel' : 'Carousel indicators'}>
+              <div
+                className="flex gap-2"
+                role="tablist"
+                aria-label={
+                  language === "es"
+                    ? "Indicadores del carrusel"
+                    : "Carousel indicators"
+                }
+              >
                 {services.map((_, index) => (
                   <button
                     key={index}
                     onClick={() => {
-                      setCurrentSlide(index)
-                      setIsPaused(true)
+                      setCurrentSlide(index);
+                      setIsPaused(true);
                     }}
                     role="tab"
                     aria-selected={index === currentSlide}
-                    aria-label={`${language === 'es' ? 'Ir a slide' : 'Go to slide'} ${index + 1}`}
+                    aria-label={`${language === "es" ? "Ir a slide" : "Go to slide"} ${index + 1}`}
                     className={`h-2 rounded-full transition-all ${
-                      index === currentSlide 
-                        ? 'w-8 bg-foreground' 
-                        : 'w-2 bg-foreground/20 hover:bg-foreground/40'
+                      index === currentSlide
+                        ? "w-8 bg-foreground"
+                        : "w-2 bg-foreground/20 hover:bg-foreground/40"
                     }`}
                   />
                 ))}
@@ -214,8 +281,8 @@ export function HeroSection() {
           {/* Image Grid - Right Column (2x2) */}
           <div className="grid grid-cols-2 gap-4">
             {heroImages.map((imgVal, index) => {
-              const src = getHeroImageSrc(imgVal)
-              const isApiImage = src.startsWith('/api/images/')
+              const src = getHeroImageSrc(imgVal);
+              const isApiImage = src.startsWith("/api/images/");
               return (
                 <div
                   key={`${currentSlide}-${index}`}
@@ -223,7 +290,7 @@ export function HeroSection() {
                 >
                   <Image
                     src={src}
-                    alt={`${language === 'es' ? currentService?.title_es : currentService?.title_en} - ${language === 'es' ? 'Imagen' : 'Image'} ${index + 1}`}
+                    alt={`${serviceTitle} - ${language === "es" ? "Imagen" : "Image"} ${index + 1}`}
                     fill
                     priority
                     loading="eager"
@@ -232,11 +299,11 @@ export function HeroSection() {
                     unoptimized={isApiImage}
                   />
                 </div>
-              )
+              );
             })}
           </div>
         </div>
       </div>
     </section>
-  )
+  );
 }
