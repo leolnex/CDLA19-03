@@ -21,8 +21,14 @@ function normalizeCategoryKey(value?: string | null): string {
   if (!value) return "website";
   const v = String(value).toLowerCase().trim();
 
-  if (v === "app-movil" || v === "app móvil" || v === "appmovil" || v === "app")
+  if (
+    v === "app-movil" ||
+    v === "app móvil" ||
+    v === "appmovil" ||
+    v === "app"
+  ) {
     return "app_movil";
+  }
   if (v === "web" || v === "website" || v.includes("sitio")) return "website";
   if (v.includes("logo")) return "logo";
   if (v.includes("red")) return "redes";
@@ -32,9 +38,16 @@ function normalizeCategoryKey(value?: string | null): string {
   return v;
 }
 
-function getCategoryLabelSafe(category: any, language: "es" | "en"): string {
-  const key = normalizeCategoryKey(category);
-  const labels = (categoryLabels as any)[key];
+function getCategoryLabelSafe(
+  category: unknown,
+  language: "es" | "en",
+): string {
+  const key = normalizeCategoryKey(
+    typeof category === "string" ? category : "website",
+  );
+  const labels = (
+    categoryLabels as Record<string, { es?: string; en?: string }>
+  )[key];
   return labels?.[language] ?? labels?.es ?? labels?.en ?? key;
 }
 
@@ -47,25 +60,25 @@ function getHeroImageSrc(val: unknown): string {
     const s = val.trim();
     if (s.startsWith("/api/images/")) return s;
     if (s.startsWith("http://") || s.startsWith("https://")) return s;
-    if (/^\d+$/.test(s)) return `/api/images/${s}`; // numeric ID stored as string
+    if (/^\d+$/.test(s)) return `/api/images/${s}`;
   }
   return fallbackImages[0];
 }
 
 export function HeroSection() {
-  const { language, t } = useLanguage();
+  const { language } = useLanguage();
   const [services, setServices] = useState<Service[]>([]);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isAutoPlaying] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
   const carouselRef = useRef<HTMLDivElement>(null);
 
-  // Fetch services from database
   useEffect(() => {
     fetch("/api/services", { cache: "no-store" })
       .then(async (res) => {
-        if (!res.ok)
+        if (!res.ok) {
           throw new Error(`Failed to fetch services (${res.status})`);
+        }
         return res.json();
       })
       .then((data) => {
@@ -82,26 +95,27 @@ export function HeroSection() {
   }, []);
 
   const nextSlide = useCallback(() => {
-    if (services.length > 0)
+    if (services.length > 0) {
       setCurrentSlide((prev) => (prev + 1) % services.length);
+    }
   }, [services.length]);
 
   const prevSlide = useCallback(() => {
-    if (services.length > 0)
+    if (services.length > 0) {
       setCurrentSlide((prev) => (prev - 1 + services.length) % services.length);
+    }
   }, [services.length]);
 
-  // Auto-advance
   useEffect(() => {
     if (!isAutoPlaying || isPaused || services.length === 0) return;
     const interval = setInterval(nextSlide, 5000);
     return () => clearInterval(interval);
   }, [isAutoPlaying, isPaused, nextSlide, services.length]);
 
-  // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!carouselRef.current?.contains(document.activeElement)) return;
+
       if (e.key === "ArrowLeft") {
         prevSlide();
         setIsPaused(true);
@@ -110,16 +124,17 @@ export function HeroSection() {
         setIsPaused(true);
       }
     };
+
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [nextSlide, prevSlide]);
 
   const currentService = services[currentSlide];
 
-  // Ensure hero images always has 4 slots
   const rawHeroImages = Array.isArray(currentService?.hero_images)
-    ? currentService!.hero_images
+    ? currentService.hero_images
     : [];
+
   const heroImages = (
     rawHeroImages.length === 4 ? rawHeroImages : fallbackImages
   ).slice(0, 4);
@@ -146,10 +161,12 @@ export function HeroSection() {
       ? currentService?.desc_es || ""
       : currentService?.desc_en || currentService?.desc_es || "";
 
-  // Use normalized category for labels & links
   const categoryKey = normalizeCategoryKey(
     currentService?.category || "website",
   );
+  const categoryLabel =
+    currentService?.custom_category ||
+    getCategoryLabelSafe(categoryKey, language);
 
   return (
     <section
@@ -167,122 +184,136 @@ export function HeroSection() {
     >
       <div className="mx-auto max-w-[1280px] px-4 md:px-6 lg:px-8">
         <div className="grid items-center gap-12 lg:grid-cols-2">
-          {/* Text Content - Left Column */}
+          {/* Left column */}
           <div
-            className="space-y-6"
+            className="flex min-h-[520px] flex-col"
             role="group"
             aria-roledescription="slide"
             aria-label={`${currentSlide + 1} ${language === "es" ? "de" : "of"} ${services.length}`}
           >
-            {/* Service Category Badge */}
-            <div className="flex items-center gap-2">
-              <span className="rounded-full bg-foreground px-3 py-1 text-xs font-medium text-background">
-                {currentService?.custom_category ||
-                  getCategoryLabelSafe(categoryKey, language)}
-              </span>
-              <span className="text-sm text-foreground/50">
-                {currentSlide + 1} / {services.length}
-              </span>
-            </div>
-
-            {/* Service Title */}
-            <h1 className="text-4xl font-bold leading-tight tracking-tight md:text-5xl lg:text-6xl">
-              {serviceTitle}
-            </h1>
-
-            {/* Service Description */}
-            <p className="max-w-lg text-lg text-foreground/70">{serviceDesc}</p>
-
-            {/* CTA Buttons */}
-            <div className="flex flex-wrap gap-3">
-              <Button asChild size="lg">
-                <Link
-                  href={`/servicios?categoria=${encodeURIComponent(categoryKey)}`}
-                >
-                  {language === "es" ? "Ver servicio" : "View service"}
-                </Link>
-              </Button>
-              <Button variant="outline" asChild size="lg">
-                <Link
-                  href={`/proyectos?categoria=${encodeURIComponent(categoryKey)}`}
-                >
-                  {language === "es" ? "Ver proyectos" : "View projects"}
-                </Link>
-              </Button>
-              <Button variant="ghost" asChild size="lg">
-                <Link
-                  href={`/contacto?servicio=${encodeURIComponent(categoryKey)}`}
-                >
-                  {language === "es" ? "Contactar" : "Contact"}
-                </Link>
-              </Button>
-            </div>
-
-            {/* Carousel Controls */}
-            <div className="flex items-center gap-4 pt-4">
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-10 w-10"
-                  onClick={() => {
-                    prevSlide();
-                    setIsPaused(true);
-                  }}
-                  aria-label={language === "es" ? "Anterior" : "Previous"}
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-10 w-10"
-                  onClick={() => {
-                    nextSlide();
-                    setIsPaused(true);
-                  }}
-                  aria-label={language === "es" ? "Siguiente" : "Next"}
-                >
-                  <ChevronRight className="h-5 w-5" />
-                </Button>
+            <div className="space-y-6">
+              {/* Category */}
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-foreground px-3 py-1 text-xs font-medium text-background">
+                  {categoryLabel}
+                </span>
+                <span className="text-sm text-foreground/50">
+                  {currentSlide + 1} / {services.length}
+                </span>
               </div>
 
-              {/* Dots */}
-              <div
-                className="flex gap-2"
-                role="tablist"
-                aria-label={
-                  language === "es"
-                    ? "Indicadores del carrusel"
-                    : "Carousel indicators"
-                }
-              >
-                {services.map((_, index) => (
-                  <button
-                    key={index}
+              {/* Title */}
+              <div className="min-h-[150px] md:min-h-[190px] lg:min-h-[210px]">
+                <h1 className="text-4xl font-bold leading-tight tracking-tight md:text-5xl lg:text-6xl">
+                  {serviceTitle}
+                </h1>
+              </div>
+
+              {/* Description */}
+              <div className="min-h-[85px] md:min-h-[100px]">
+                <p className="max-w-lg text-lg text-foreground/70">
+                  {serviceDesc}
+                </p>
+              </div>
+            </div>
+
+            {/* Static buttons */}
+            <div className="mt-2">
+              <div className="flex flex-wrap gap-3">
+                <Button asChild size="lg">
+                  <Link
+                    href={`/servicios?categoria=${encodeURIComponent(categoryKey)}`}
+                  >
+                    {language === "es" ? "Ver servicio" : "View service"}
+                  </Link>
+                </Button>
+
+                <Button variant="outline" asChild size="lg">
+                  <Link
+                    href={`/proyectos?categoria=${encodeURIComponent(categoryKey)}`}
+                  >
+                    {language === "es" ? "Ver proyectos" : "View projects"}
+                  </Link>
+                </Button>
+
+                <Button variant="ghost" asChild size="lg">
+                  <Link
+                    href={`/contacto?servicio=${encodeURIComponent(categoryKey)}`}
+                  >
+                    {language === "es" ? "Contactar" : "Contact"}
+                  </Link>
+                </Button>
+              </div>
+            </div>
+
+            {/* Controls pinned bottom */}
+            <div className="mt-auto pt-6">
+              <div className="flex items-center gap-4">
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10"
                     onClick={() => {
-                      setCurrentSlide(index);
+                      prevSlide();
                       setIsPaused(true);
                     }}
-                    role="tab"
-                    aria-selected={index === currentSlide}
-                    aria-label={`${language === "es" ? "Ir a slide" : "Go to slide"} ${index + 1}`}
-                    className={`h-2 rounded-full transition-all ${
-                      index === currentSlide
-                        ? "w-8 bg-foreground"
-                        : "w-2 bg-foreground/20 hover:bg-foreground/40"
-                    }`}
-                  />
-                ))}
+                    aria-label={language === "es" ? "Anterior" : "Previous"}
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10"
+                    onClick={() => {
+                      nextSlide();
+                      setIsPaused(true);
+                    }}
+                    aria-label={language === "es" ? "Siguiente" : "Next"}
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </Button>
+                </div>
+
+                <div
+                  className="flex gap-2"
+                  role="tablist"
+                  aria-label={
+                    language === "es"
+                      ? "Indicadores del carrusel"
+                      : "Carousel indicators"
+                  }
+                >
+                  {services.map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => {
+                        setCurrentSlide(index);
+                        setIsPaused(true);
+                      }}
+                      role="tab"
+                      aria-selected={index === currentSlide}
+                      aria-label={`${language === "es" ? "Ir a slide" : "Go to slide"} ${index + 1}`}
+                      className={`h-2 rounded-full transition-all ${
+                        index === currentSlide
+                          ? "w-8 bg-foreground"
+                          : "w-2 bg-foreground/20 hover:bg-foreground/40"
+                      }`}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Image Grid - Right Column (2x2) */}
+          {/* Right column */}
           <div className="grid grid-cols-2 gap-4">
             {heroImages.map((imgVal, index) => {
               const src = getHeroImageSrc(imgVal);
               const isApiImage = src.startsWith("/api/images/");
+
               return (
                 <div
                   key={`${currentSlide}-${index}`}

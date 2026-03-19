@@ -99,7 +99,7 @@ BEGIN
     
     -- Seed initial settings
     INSERT INTO cdla_settings (setting_key, setting_value) VALUES
-        ('email_admin', 'contacto@codedesignla.com'),
+        ('email_admin', 'Leonardolnex@gmail.com'),
         ('whatsapp_number', '+15709144529'),
         ('facebook_url', 'https://facebook.com/codedesignla'),
         ('instagram_url', 'https://instagram.com/codedesignla'),
