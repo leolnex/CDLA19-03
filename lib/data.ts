@@ -26,6 +26,11 @@ function toInt(value: unknown): number {
   return Number.isFinite(n) ? n : NaN;
 }
 
+function toNumberOr(value: unknown, fallback: number): number {
+  const n = typeof value === "string" ? Number(value) : Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 function parseJson<T>(str: string | null | undefined, defaultValue: T): T {
   if (!str) return defaultValue;
   try {
@@ -35,6 +40,11 @@ function parseJson<T>(str: string | null | undefined, defaultValue: T): T {
   }
 }
 
+function logFallback(scope: string, error: unknown) {
+  console.error(`[CDLA] ${scope} error:`, error);
+  console.log(`[CDLA] ${scope} using fallback from initialData`);
+}
+
 // =============================================
 // SERVICIOS
 // =============================================
@@ -42,11 +52,11 @@ function parseJson<T>(str: string | null | undefined, defaultValue: T): T {
 export async function getServices(): Promise<Service[]> {
   try {
     const rows = await executeQuery<DbRow[]>(
-      `SELECT * FROM cdla_services ORDER BY updated_at DESC`,
+      `SELECT * FROM cdla_services ORDER BY updated_at DESC, service_id DESC`,
     );
     return rows.map(mapServiceFromDb);
   } catch (error) {
-    console.error("Error getting services:", error);
+    logFallback("getServices", error);
     return initialData.services;
   }
 }
@@ -54,11 +64,11 @@ export async function getServices(): Promise<Service[]> {
 export async function getPublishedServices(): Promise<Service[]> {
   try {
     const rows = await executeQuery<DbRow[]>(
-      `SELECT * FROM cdla_services WHERE status = 'publish' ORDER BY updated_at DESC`,
+      `SELECT * FROM cdla_services WHERE status = 'publish' ORDER BY service_id ASC`,
     );
     return rows.map(mapServiceFromDb);
   } catch (error) {
-    console.error("Error getting published services:", error);
+    logFallback("getPublishedServices", error);
     return initialData.services.filter((s) => s.status === "publish");
   }
 }
@@ -73,7 +83,7 @@ export async function getServiceBySlug(slug: string): Promise<Service | null> {
     if (!rows.length) return null;
     return mapServiceFromDb(rows[0]);
   } catch (error) {
-    console.error("Error getting service by slug:", error);
+    logFallback("getServiceBySlug", error);
     return initialData.services.find((s) => s.slug === slug) || null;
   }
 }
@@ -236,11 +246,11 @@ function mapServiceFromDb(row: DbRow): Service {
 export async function getProjects(): Promise<Project[]> {
   try {
     const rows = await executeQuery<DbRow[]>(
-      `SELECT * FROM cdla_projects ORDER BY updated_at DESC`,
+      `SELECT * FROM cdla_projects ORDER BY updated_at DESC, project_id DESC`,
     );
     return rows.map(mapProjectFromDb);
   } catch (error) {
-    console.error("Error getting projects:", error);
+    logFallback("getProjects", error);
     return initialData.projects;
   }
 }
@@ -248,11 +258,11 @@ export async function getProjects(): Promise<Project[]> {
 export async function getPublishedProjects(): Promise<Project[]> {
   try {
     const rows = await executeQuery<DbRow[]>(
-      `SELECT * FROM cdla_projects WHERE status = 'publish' ORDER BY updated_at DESC`,
+      `SELECT * FROM cdla_projects WHERE status = 'publish' ORDER BY project_id ASC`,
     );
     return rows.map(mapProjectFromDb);
   } catch (error) {
-    console.error("Error getting published projects:", error);
+    logFallback("getPublishedProjects", error);
     return initialData.projects.filter((p) => p.status === "publish");
   }
 }
@@ -260,11 +270,11 @@ export async function getPublishedProjects(): Promise<Project[]> {
 export async function getFeaturedProjects(): Promise<Project[]> {
   try {
     const rows = await executeQuery<DbRow[]>(
-      `SELECT * FROM cdla_projects WHERE status = 'publish' AND featured = 1 ORDER BY updated_at DESC`,
+      `SELECT * FROM cdla_projects WHERE status = 'publish' AND featured = 1 ORDER BY project_id ASC`,
     );
     return rows.map(mapProjectFromDb);
   } catch (error) {
-    console.error("Error getting featured projects:", error);
+    logFallback("getFeaturedProjects", error);
     return initialData.projects.filter(
       (p) => p.status === "publish" && p.featured,
     );
@@ -281,7 +291,7 @@ export async function getProjectBySlug(slug: string): Promise<Project | null> {
     if (!rows.length) return null;
     return mapProjectFromDb(rows[0]);
   } catch (error) {
-    console.error("Error getting project by slug:", error);
+    logFallback("getProjectBySlug", error);
     return initialData.projects.find((p) => p.slug === slug) || null;
   }
 }
@@ -319,12 +329,12 @@ export async function searchProjects(
       params.push(q, q, q, q, q, qNoDash);
     }
 
-    sql += ` ORDER BY updated_at DESC`;
+    sql += ` ORDER BY project_id ASC`;
 
     const rows = await executeQuery<DbRow[]>(sql, params);
     return rows.map(mapProjectFromDb);
   } catch (error) {
-    console.error("Error searching projects:", error);
+    logFallback("searchProjects", error);
     return initialData.projects.filter((p) => {
       const matchesCategory =
         !category || category === "todos" || p.category === category;
@@ -496,11 +506,11 @@ function mapProjectFromDb(row: DbRow): Project {
 export async function getLeads(): Promise<Lead[]> {
   try {
     const rows = await executeQuery<DbRow[]>(
-      `SELECT * FROM cdla_leads ORDER BY created_at DESC`,
+      `SELECT * FROM cdla_leads ORDER BY created_at DESC, lead_id DESC`,
     );
     return rows.map(mapLeadFromDb);
   } catch (error) {
-    console.error("Error getting leads:", error);
+    logFallback("getLeads", error);
     return initialData.leads;
   }
 }
@@ -611,7 +621,7 @@ export async function getSettings(): Promise<Settings> {
       },
     };
   } catch (error) {
-    console.error("Error getting settings:", error);
+    logFallback("getSettings", error);
     return initialData.settings;
   }
 }
@@ -682,13 +692,13 @@ export async function getMetrics(): Promise<Metrics> {
     }
 
     return {
-      projects_delivered: metrics.projects_delivered || 50,
-      years_experience: metrics.years_experience || 5,
-      active_countries: metrics.active_countries || 10,
-      visits_total: metrics.visits_total || 0,
+      projects_delivered: toNumberOr(metrics.projects_delivered, 50),
+      years_experience: toNumberOr(metrics.years_experience, 5),
+      active_countries: toNumberOr(metrics.active_countries, 10),
+      visits_total: toNumberOr(metrics.visits_total, 0),
     };
   } catch (error) {
-    console.error("Error getting metrics:", error);
+    logFallback("getMetrics", error);
     return initialData.metrics;
   }
 }
@@ -714,6 +724,12 @@ export async function updateMetrics(
     updates.push({
       key: "active_countries",
       value: metrics.active_countries,
+    });
+  }
+  if (metrics.visits_total !== undefined) {
+    updates.push({
+      key: "visits_total",
+      value: metrics.visits_total,
     });
   }
 
@@ -743,7 +759,7 @@ export async function incrementVisits(): Promise<number> {
 
     return Number(rows[0]?.metric_value || 0);
   } catch (error) {
-    console.error("Error incrementing visits:", error);
+    console.error("[CDLA] incrementVisits error:", error);
     return 0;
   }
 }
@@ -751,6 +767,81 @@ export async function incrementVisits(): Promise<number> {
 // =============================================
 // INITIALIZATION (MYSQL)
 // =============================================
+
+async function ensureSetting(key: string, value: string | undefined) {
+  await executeQuery(
+    `INSERT INTO cdla_settings (setting_key, setting_value)
+     SELECT ?, ?
+     WHERE NOT EXISTS (
+       SELECT 1 FROM cdla_settings WHERE setting_key = ?
+     )`,
+    [key, value || null, key],
+  );
+}
+
+async function ensureMetric(key: string, value: number) {
+  await executeQuery(
+    `INSERT INTO cdla_metrics (metric_key, metric_value)
+     SELECT ?, ?
+     WHERE NOT EXISTS (
+       SELECT 1 FROM cdla_metrics WHERE metric_key = ?
+     )`,
+    [key, value, key],
+  );
+}
+
+async function ensureService(service: Service) {
+  await executeQuery(
+    `INSERT INTO cdla_services
+      (slug, category, custom_category, status, title_es, title_en, desc_es, desc_en, ideal_es, ideal_en, bullets_es, bullets_en, hero_images)
+     SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+     WHERE NOT EXISTS (
+       SELECT 1 FROM cdla_services WHERE slug = ?
+     )`,
+    [
+      String(service.slug),
+      String(service.category),
+      service.custom_category || null,
+      String(service.status),
+      String(service.title_es),
+      service.title_en ? String(service.title_en) : null,
+      service.desc_es ? String(service.desc_es) : null,
+      service.desc_en ? String(service.desc_en) : null,
+      service.ideal_es ? String(service.ideal_es) : null,
+      service.ideal_en ? String(service.ideal_en) : null,
+      JSON.stringify(service.bullets_es || []),
+      JSON.stringify(service.bullets_en || []),
+      JSON.stringify(service.hero_images || []),
+      String(service.slug),
+    ],
+  );
+}
+
+async function ensureProject(project: Project) {
+  await executeQuery(
+    `INSERT INTO cdla_projects
+      (slug, category, status, featured, title_es, title_en, desc_es, desc_en, location, project_url, cover_image, gallery_images)
+     SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+     WHERE NOT EXISTS (
+       SELECT 1 FROM cdla_projects WHERE slug = ?
+     )`,
+    [
+      String(project.slug),
+      String(project.category),
+      String(project.status),
+      project.featured ? 1 : 0,
+      String(project.title_es),
+      project.title_en ? String(project.title_en) : null,
+      project.desc_es ? String(project.desc_es) : null,
+      project.desc_en ? String(project.desc_en) : null,
+      project.location ? String(project.location) : null,
+      project.project_url ? String(project.project_url) : null,
+      String((project as any).cover_image || ""),
+      JSON.stringify((project as any).gallery_images || []),
+      String(project.slug),
+    ],
+  );
+}
 
 export async function initializeDatabase(): Promise<void> {
   try {
@@ -846,7 +937,6 @@ export async function initializeDatabase(): Promise<void> {
       CREATE INDEX IF NOT EXISTS IX_cdla_images_owner
       ON cdla_images (owner_type, owner_id, role)
     `).catch(async () => {
-      // fallback para MySQL que no soporte IF NOT EXISTS en índices
       try {
         await executeQuery(`
           CREATE INDEX IX_cdla_images_owner
@@ -857,132 +947,68 @@ export async function initializeDatabase(): Promise<void> {
       }
     });
 
-    const settingsCountRows = await executeQuery<DbRow[]>(
-      `SELECT COUNT(*) as cnt FROM cdla_settings`,
+    // SETTINGS: crea solo las claves faltantes
+    await ensureSetting(
+      "email_admin",
+      initialData.settings.email_admin || "Leonardolnex@gmail.com",
     );
-    if (Number(settingsCountRows[0].cnt) === 0) {
-      await executeQuery(`
-        INSERT INTO cdla_settings (setting_key, setting_value) VALUES
-        ('email_admin', 'Leonardolnex@gmail.com'),
-        ('whatsapp_number', '+15709144529'),
-        ('facebook_url', 'https://facebook.com/codedesignla'),
-        ('instagram_url', 'https://instagram.com/codedesignla'),
-        ('x_url', 'https://x.com/codedesignla'),
-        ('threads_url', 'https://threads.net/@codedesignla')
-      `);
+    await ensureSetting(
+      "whatsapp_number",
+      initialData.settings.whatsapp_number || "+15709144529",
+    );
+    await ensureSetting(
+      "facebook_url",
+      initialData.settings.social_links?.facebook,
+    );
+    await ensureSetting(
+      "instagram_url",
+      initialData.settings.social_links?.instagram,
+    );
+    await ensureSetting("x_url", initialData.settings.social_links?.twitter);
+    await ensureSetting(
+      "threads_url",
+      initialData.settings.social_links?.threads,
+    );
+
+    // METRICS: crea solo las claves faltantes
+    await ensureMetric(
+      "projects_delivered",
+      initialData.metrics.projects_delivered ?? 50,
+    );
+    await ensureMetric(
+      "years_experience",
+      initialData.metrics.years_experience ?? 5,
+    );
+    await ensureMetric(
+      "active_countries",
+      initialData.metrics.active_countries ?? 10,
+    );
+    await ensureMetric("visits_total", initialData.metrics.visits_total ?? 0);
+
+    // SERVICES: inserta solo servicios faltantes por slug
+    for (const service of initialData.services) {
+      await ensureService(service);
     }
 
-    const metricsCountRows = await executeQuery<DbRow[]>(
-      `SELECT COUNT(*) as cnt FROM cdla_metrics`,
-    );
-    if (Number(metricsCountRows[0].cnt) === 0) {
-      await executeQuery(`
-        INSERT INTO cdla_metrics (metric_key, metric_value) VALUES
-        ('projects_delivered', 50),
-        ('years_experience', 5),
-        ('active_countries', 10),
-        ('visits_total', 0)
-      `);
+    // PROJECTS: inserta solo proyectos faltantes por slug
+    for (const project of initialData.projects) {
+      await ensureProject(project);
     }
 
-    const servicesCountRows = await executeQuery<DbRow[]>(
-      `SELECT COUNT(*) as cnt FROM cdla_services`,
+    const serviceCount = await executeQuery<DbRow[]>(
+      `SELECT COUNT(*) AS cnt FROM cdla_services`,
     );
-    if (Number(servicesCountRows[0].cnt) === 0) {
-      await executeQuery(`
-        INSERT INTO cdla_services
-        (slug, category, status, title_es, title_en, desc_es, desc_en, ideal_es, ideal_en, bullets_es, bullets_en, hero_images)
-        VALUES
-        ('sitio-web-profesional', 'website', 'publish', 'Sitio web profesional', 'Professional Website',
-         'Diseño y desarrollo de sitios web modernos, rápidos y optimizados para conversión.',
-         'Design and development of modern, fast websites optimized for conversion.',
-         'Empresas, startups, profesionales independientes', 'Companies, startups, independent professionals',
-         '["Diseño responsive","SEO optimizado","Carga rápida"]', '["Responsive design","SEO optimized","Fast loading"]',
-         '["https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=600&fit=crop","https://images.unsplash.com/photo-1504868584819-f8e8b4b6d7e3?w=800&h=600&fit=crop","https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=600&fit=crop","https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=800&h=600&fit=crop"]'),
-
-        ('aplicacion-movil', 'app-movil', 'publish', 'Aplicación móvil', 'Mobile Application',
-         'Desarrollo de apps nativas y multiplataforma con interfaces intuitivas.',
-         'Development of native and cross-platform apps with intuitive interfaces.',
-         'Negocios con base de clientes móviles', 'Businesses with mobile customer base',
-         '["iOS y Android","Interfaz intuitiva","Notificaciones push"]', '["iOS and Android","Intuitive interface","Push notifications"]',
-         '["https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=800&h=600&fit=crop","https://images.unsplash.com/photo-1551650975-87deedd944c3?w=800&h=600&fit=crop","https://images.unsplash.com/photo-1526498460520-4c246339dccb?w=800&h=600&fit=crop","https://images.unsplash.com/photo-1605170439002-90845e8c0137?w=800&h=600&fit=crop"]'),
-
-        ('diseno-de-logo', 'logo', 'publish', 'Diseño de logo', 'Logo Design',
-         'Creación de identidad visual única y memorable para tu marca.',
-         'Creation of unique and memorable visual identity for your brand.',
-         'Nuevos negocios, rebranding', 'New businesses, rebranding',
-         '["Múltiples propuestas","Archivos editables","Manual de marca"]', '["Multiple proposals","Editable files","Brand manual"]',
-         '["https://images.unsplash.com/photo-1626785774573-4b799315345d?w=800&h=600&fit=crop","https://images.unsplash.com/photo-1558655146-9f40138edfeb?w=800&h=600&fit=crop","https://images.unsplash.com/photo-1611532736597-de2d4265fba3?w=800&h=600&fit=crop","https://images.unsplash.com/photo-1572044162444-ad60f128bdea?w=800&h=600&fit=crop"]'),
-
-        ('gestion-redes-sociales', 'redes', 'publish', 'Gestión de redes sociales', 'Social Media Management',
-         'Estrategia y contenido para tus redes sociales que genera engagement.',
-         'Strategy and content for your social media that generates engagement.',
-         'Marcas que buscan presencia digital', 'Brands looking for digital presence',
-         '["Contenido mensual","Diseños profesionales","Reportes"]', '["Monthly content","Professional designs","Reports"]',
-         '["https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=800&h=600&fit=crop","https://images.unsplash.com/photo-1562577309-4932fdd64cd1?w=800&h=600&fit=crop","https://images.unsplash.com/photo-1432888622747-4eb9a8f2c2e4?w=800&h=600&fit=crop","https://images.unsplash.com/photo-1563986768494-4dee2763ff3f?w=800&h=600&fit=crop"]'),
-
-        ('tarjetas-presentacion', 'tarjetas', 'publish', 'Tarjetas de presentación', 'Business Cards',
-         'Diseño profesional de tarjetas que dejan una impresión duradera.',
-         'Professional card design that leaves a lasting impression.',
-         'Profesionales, ejecutivos, networkers', 'Professionals, executives, networkers',
-         '["Diseño premium","Archivos para impresión","Variantes"]', '["Premium design","Print-ready files","Variants"]',
-         '["https://images.unsplash.com/photo-1611532736597-de2d4265fba3?w=800&h=600&fit=crop","https://images.unsplash.com/photo-1586075010923-2dd4570fb338?w=800&h=600&fit=crop","https://images.unsplash.com/photo-1572044162444-ad60f128bdea?w=800&h=600&fit=crop","https://images.unsplash.com/photo-1558655146-9f40138edfeb?w=800&h=600&fit=crop"]')
-      `);
-    }
-
-    const projectsCountRows = await executeQuery<DbRow[]>(
-      `SELECT COUNT(*) as cnt FROM cdla_projects`,
+    const projectCount = await executeQuery<DbRow[]>(
+      `SELECT COUNT(*) AS cnt FROM cdla_projects`,
     );
-    if (Number(projectsCountRows[0].cnt) === 0) {
-      await executeQuery(`
-        INSERT INTO cdla_projects
-        (slug, category, status, featured, title_es, title_en, desc_es, desc_en, location, project_url, cover_image, gallery_images)
-        VALUES
-        ('proyecto-1', 'website', 'publish', 1, 'Proyecto 1', 'Project 1',
-         'Trabajo destacado con enfoque en detalles, acabados limpios y una presentación elegante del resultado.',
-         'Featured work with focus on details, clean finishes and elegant presentation of the result.',
-         'Quito', 'https://example.com/proyecto1',
-         'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=600&fit=crop',
-         '["https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=600&fit=crop"]'),
-
-        ('proyecto-2', 'app-movil', 'publish', 1, 'Proyecto 2', 'Project 2',
-         'Trabajo destacado con enfoque en detalles, acabados limpios y una presentación elegante del resultado.',
-         'Featured work with focus on details, clean finishes and elegant presentation of the result.',
-         'Ambato', NULL,
-         'https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=800&h=600&fit=crop',
-         '["https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=800&h=600&fit=crop"]'),
-
-        ('proyecto-3', 'logo', 'publish', 1, 'Proyecto 3', 'Project 3',
-         'Trabajo destacado con enfoque en detalles, acabados limpios y una presentación elegante del resultado.',
-         'Featured work with focus on details, clean finishes and elegant presentation of the result.',
-         'Cuenca', NULL,
-         'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&h=600&fit=crop',
-         '["https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&h=600&fit=crop"]'),
-
-        ('proyecto-4', 'website', 'publish', 1, 'Proyecto 4', 'Project 4',
-         'Trabajo destacado con enfoque en detalles, acabados limpios y una presentación elegante del resultado.',
-         'Featured work with focus on details, clean finishes and elegant presentation of the result.',
-         'Quito', 'https://example.com/proyecto4',
-         'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800&h=600&fit=crop',
-         '["https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800&h=600&fit=crop"]'),
-
-        ('proyecto-5', 'redes', 'publish', 1, 'Proyecto 5', 'Project 5',
-         'Trabajo destacado con enfoque en detalles, acabados limpios y una presentación elegante del resultado.',
-         'Featured work with focus on details, clean finishes and elegant presentation of the result.',
-         'Ambato', NULL,
-         'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=800&h=600&fit=crop',
-         '["https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=800&h=600&fit=crop"]'),
-
-        ('proyecto-6', 'tarjetas', 'publish', 1, 'Proyecto 6', 'Project 6',
-         'Trabajo destacado con enfoque en detalles, acabados limpios y una presentación elegante del resultado.',
-         'Featured work with focus on details, clean finishes and elegant presentation of the result.',
-         'Cuenca', NULL,
-         'https://images.unsplash.com/photo-1426604966848-d7adac402bff?w=800&h=600&fit=crop',
-         '["https://images.unsplash.com/photo-1426604966848-d7adac402bff?w=800&h=600&fit=crop"]')
-      `);
-    }
+    const metricsRows = await executeQuery<DbRow[]>(
+      `SELECT metric_key, metric_value FROM cdla_metrics ORDER BY metric_key ASC`,
+    );
 
     console.log("[CDLA] Database initialized successfully");
+    console.log("[CDLA] services in db:", Number(serviceCount[0]?.cnt || 0));
+    console.log("[CDLA] projects in db:", Number(projectCount[0]?.cnt || 0));
+    console.log("[CDLA] metrics in db:", metricsRows);
   } catch (error) {
     console.error("[CDLA] Database initialization error:", error);
     throw error;
