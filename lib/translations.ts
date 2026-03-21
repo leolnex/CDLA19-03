@@ -349,7 +349,7 @@ export const translations = {
     },
     // Footer
     footer: {
-      tagline: "First impressions are digital",
+      tagline: "Your first impression is digital",
       navigation: "Navigation",
       contactTitle: "Contact",
       rights: "All rights reserved.",
