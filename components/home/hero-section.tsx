@@ -186,12 +186,12 @@ export function HeroSection() {
         <div className="grid items-center gap-12 lg:grid-cols-2">
           {/* Left column */}
           <div
-            className="flex min-h-[520px] flex-col"
+            className="flex min-h-[520px] flex-col justify-between lg:min-h-[560px]"
             role="group"
             aria-roledescription="slide"
             aria-label={`${currentSlide + 1} ${language === "es" ? "de" : "of"} ${services.length}`}
           >
-            <div className="space-y-6">
+            <div className="max-w-[560px] space-y-5 md:space-y-6">
               {/* Category */}
               <div className="flex items-center gap-2">
                 <span className="rounded-full bg-foreground px-3 py-1 text-xs font-medium text-background">
@@ -203,22 +203,22 @@ export function HeroSection() {
               </div>
 
               {/* Title */}
-              <div className="min-h-[150px] md:min-h-[190px] lg:min-h-[210px]">
-                <h1 className="text-4xl font-bold leading-tight tracking-tight md:text-5xl lg:text-6xl">
+              <div>
+                <h1 className="text-4xl font-bold leading-[0.95] tracking-tight md:text-5xl lg:text-6xl">
                   {serviceTitle}
                 </h1>
               </div>
 
               {/* Description */}
-              <div className="min-h-[85px] md:min-h-[100px]">
-                <p className="max-w-lg text-lg text-foreground/70">
+              <div>
+                <p className="max-w-[520px] text-base leading-7 text-foreground/70 md:text-lg">
                   {serviceDesc}
                 </p>
               </div>
             </div>
 
             {/* Static buttons */}
-            <div className="mt-2">
+            <div className="mt-8 md:mt-10">
               <div className="flex flex-wrap gap-3">
                 <Button asChild size="lg">
                   <Link
@@ -247,7 +247,7 @@ export function HeroSection() {
             </div>
 
             {/* Controls pinned bottom */}
-            <div className="mt-auto pt-6">
+            <div className="mt-auto pt-8 md:pt-10">
               <div className="flex items-center gap-4">
                 <div className="flex gap-2">
                   <Button

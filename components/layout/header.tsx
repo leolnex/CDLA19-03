@@ -1,73 +1,83 @@
-'use client'
+"use client";
 
-import Link from 'next/link'
-import { useTheme } from 'next-themes'
-import { useLanguage } from '@/components/providers/language-provider'
-import { Button } from '@/components/ui/button'
+import Link from "next/link";
+import Image from "next/image";
+import { useTheme } from "next-themes";
+import { useLanguage } from "@/components/providers/language-provider";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Moon, Sun, MoreHorizontal, MessageCircle } from 'lucide-react'
-import { useEffect, useState } from 'react'
+} from "@/components/ui/dropdown-menu";
+import { Moon, Sun, MoreHorizontal, MessageCircle } from "lucide-react";
+import { useEffect, useState } from "react";
 
 export function Header() {
-  const { language, setLanguage, t } = useLanguage()
-  const { theme, setTheme, resolvedTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-  const [moreOpen, setMoreOpen] = useState(false)
+  const { language, setLanguage, t } = useLanguage();
+  const { setTheme, resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   useEffect(() => {
-    setMounted(true)
-  }, [])
+    setMounted(true);
+  }, []);
 
-  // Close dropdown on ESC
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMoreOpen(false)
-    }
-    document.addEventListener('keydown', handleEsc)
-    return () => document.removeEventListener('keydown', handleEsc)
-  }, [])
+      if (e.key === "Escape") setMoreOpen(false);
+    };
+    document.addEventListener("keydown", handleEsc);
+    return () => document.removeEventListener("keydown", handleEsc);
+  }, []);
 
-  const currentTheme = mounted ? resolvedTheme : 'light'
+  const currentTheme = mounted ? resolvedTheme : "light";
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto flex h-16 max-w-[1280px] items-center justify-between px-4 md:px-6 lg:px-8">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-foreground">
-            <span className="text-sm font-bold text-background">C</span>
-          </div>
-          <span className="text-lg font-semibold">CodeDesignLA</span>
+        <Link href="/" className="flex items-center">
+          <Image
+            src={
+              mounted
+                ? currentTheme === "dark"
+                  ? "/logo-header-dark.png"
+                  : "/logo-header-light.png"
+                : "/logo-header-light.png"
+            }
+            alt="CodeDesignLA"
+            width={190}
+            height={44}
+            priority
+            className="h-10 w-auto object-contain"
+          />
         </Link>
 
         {/* Navigation - Desktop */}
         <nav className="hidden items-center gap-6 md:flex">
-          <Link 
-            href="/servicios" 
+          <Link
+            href="/servicios"
             className="text-sm font-medium text-foreground/80 transition-colors hover:text-foreground"
           >
             {t.nav.services}
           </Link>
-          <Link 
-            href="/proyectos" 
+          <Link
+            href="/proyectos"
             className="text-sm font-medium text-foreground/80 transition-colors hover:text-foreground"
           >
             {t.nav.projects}
           </Link>
-          <Link 
-            href="/acerca-de" 
+          <Link
+            href="/acerca-de"
             className="text-sm font-medium text-foreground/80 transition-colors hover:text-foreground"
           >
-            {language === 'es' ? 'Acerca de' : 'About'}
+            {language === "es" ? "Acerca de" : "About"}
           </Link>
-          <Link 
-            href="/contacto" 
+          <Link
+            href="/contacto"
             className="text-sm font-medium text-foreground/80 transition-colors hover:text-foreground"
           >
             {t.nav.contact}
@@ -79,38 +89,39 @@ export function Header() {
           {/* More Dropdown - Desktop */}
           <DropdownMenu open={moreOpen} onOpenChange={setMoreOpen}>
             <DropdownMenuTrigger asChild>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="hidden h-10 w-10 p-0 sm:inline-flex"
                 aria-expanded={moreOpen}
                 aria-controls="more-menu"
-                aria-label={language === 'es' ? 'Más opciones' : 'More options'}
+                aria-label={language === "es" ? "Más opciones" : "More options"}
               >
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent 
-              id="more-menu" 
-              align="end" 
+            <DropdownMenuContent
+              id="more-menu"
+              align="end"
               className="w-48"
               onInteractOutside={() => setMoreOpen(false)}
             >
-              {/* Theme Toggle */}
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 className="flex items-center justify-between"
-                onClick={() => setTheme(currentTheme === 'dark' ? 'light' : 'dark')}
+                onClick={() =>
+                  setTheme(currentTheme === "dark" ? "light" : "dark")
+                }
               >
-                <span>{language === 'es' ? 'Tema' : 'Theme'}</span>
+                <span>{language === "es" ? "Tema" : "Theme"}</span>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 shrink-0"
                   onClick={(e) => {
-                    e.stopPropagation()
-                    setTheme(currentTheme === 'dark' ? 'light' : 'dark')
+                    e.stopPropagation();
+                    setTheme(currentTheme === "dark" ? "light" : "dark");
                   }}
                 >
-                  {currentTheme === 'dark' ? (
+                  {currentTheme === "dark" ? (
                     <Sun className="h-4 w-4" />
                   ) : (
                     <Moon className="h-4 w-4" />
@@ -118,26 +129,28 @@ export function Header() {
                 </Button>
               </DropdownMenuItem>
 
-              {/* Language Toggle */}
-              <DropdownMenuItem className="flex items-center justify-between" onSelect={(e) => e.preventDefault()}>
-                <span>{language === 'es' ? 'Idioma' : 'Language'}</span>
+              <DropdownMenuItem
+                className="flex items-center justify-between"
+                onSelect={(e) => e.preventDefault()}
+              >
+                <span>{language === "es" ? "Idioma" : "Language"}</span>
                 <div className="flex h-8 items-center rounded-md border border-border">
                   <button
-                    onClick={() => setLanguage('es')}
+                    onClick={() => setLanguage("es")}
                     className={`h-full px-2 text-xs font-medium transition-colors ${
-                      language === 'es' 
-                        ? 'bg-foreground text-background' 
-                        : 'text-foreground/60 hover:text-foreground'
+                      language === "es"
+                        ? "bg-foreground text-background"
+                        : "text-foreground/60 hover:text-foreground"
                     }`}
                   >
                     ES
                   </button>
                   <button
-                    onClick={() => setLanguage('en')}
+                    onClick={() => setLanguage("en")}
                     className={`h-full px-2 text-xs font-medium transition-colors ${
-                      language === 'en' 
-                        ? 'bg-foreground text-background' 
-                        : 'text-foreground/60 hover:text-foreground'
+                      language === "en"
+                        ? "bg-foreground text-background"
+                        : "text-foreground/60 hover:text-foreground"
                     }`}
                   >
                     EN
@@ -147,11 +160,10 @@ export function Header() {
 
               <DropdownMenuSeparator />
 
-              {/* WhatsApp Link */}
               <DropdownMenuItem asChild>
-                <a 
-                  href="https://wa.me/15709144529" 
-                  target="_blank" 
+                <a
+                  href="https://wa.me/15709144529"
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2"
                 >
@@ -189,47 +201,52 @@ export function Header() {
                 <Link href="/proyectos">{t.nav.projects}</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/acerca-de">{language === 'es' ? 'Acerca de' : 'About'}</Link>
+                <Link href="/acerca-de">
+                  {language === "es" ? "Acerca de" : "About"}
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link href="/contacto">{t.nav.contact}</Link>
               </DropdownMenuItem>
-              
+
               <DropdownMenuSeparator />
-              
-              {/* Theme Toggle - Mobile */}
-              <DropdownMenuItem 
+
+              <DropdownMenuItem
                 className="flex items-center justify-between"
-                onClick={() => setTheme(currentTheme === 'dark' ? 'light' : 'dark')}
+                onClick={() =>
+                  setTheme(currentTheme === "dark" ? "light" : "dark")
+                }
               >
-                <span>{language === 'es' ? 'Tema' : 'Theme'}</span>
-                {currentTheme === 'dark' ? (
+                <span>{language === "es" ? "Tema" : "Theme"}</span>
+                {currentTheme === "dark" ? (
                   <Sun className="h-4 w-4" />
                 ) : (
                   <Moon className="h-4 w-4" />
                 )}
               </DropdownMenuItem>
 
-              {/* Language Toggle - Mobile */}
-              <DropdownMenuItem className="flex items-center justify-between" onSelect={(e) => e.preventDefault()}>
-                <span>{language === 'es' ? 'Idioma' : 'Language'}</span>
+              <DropdownMenuItem
+                className="flex items-center justify-between"
+                onSelect={(e) => e.preventDefault()}
+              >
+                <span>{language === "es" ? "Idioma" : "Language"}</span>
                 <div className="flex h-7 items-center rounded-md border border-border">
                   <button
-                    onClick={() => setLanguage('es')}
+                    onClick={() => setLanguage("es")}
                     className={`h-full px-2 text-xs font-medium transition-colors ${
-                      language === 'es' 
-                        ? 'bg-foreground text-background' 
-                        : 'text-foreground/60 hover:text-foreground'
+                      language === "es"
+                        ? "bg-foreground text-background"
+                        : "text-foreground/60 hover:text-foreground"
                     }`}
                   >
                     ES
                   </button>
                   <button
-                    onClick={() => setLanguage('en')}
+                    onClick={() => setLanguage("en")}
                     className={`h-full px-2 text-xs font-medium transition-colors ${
-                      language === 'en' 
-                        ? 'bg-foreground text-background' 
-                        : 'text-foreground/60 hover:text-foreground'
+                      language === "en"
+                        ? "bg-foreground text-background"
+                        : "text-foreground/60 hover:text-foreground"
                     }`}
                   >
                     EN
@@ -240,9 +257,9 @@ export function Header() {
               <DropdownMenuSeparator />
 
               <DropdownMenuItem asChild>
-                <a 
-                  href="https://wa.me/15709144529" 
-                  target="_blank" 
+                <a
+                  href="https://wa.me/15709144529"
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2"
                 >
@@ -255,5 +272,5 @@ export function Header() {
         </div>
       </div>
     </header>
-  )
+  );
 }
