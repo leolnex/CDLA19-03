@@ -16,7 +16,6 @@ const fallbackImages = [
   "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800&h=600&fit=crop",
 ];
 
-// Normalize category keys coming from DB (legacy values)
 function normalizeCategoryKey(value?: string | null): string {
   if (!value) return "website";
   const v = String(value).toLowerCase().trim();
@@ -51,8 +50,7 @@ function getCategoryLabelSafe(
   return labels?.[language] ?? labels?.es ?? labels?.en ?? key;
 }
 
-// Helper to get image source - handles both IDs and legacy URLs
-function getHeroImageSrc(val: unknown): string {
+function getHeroImageSrc(val: unknown, fallbackIndex = 0): string {
   if (typeof val === "number" && Number.isFinite(val) && val > 0) {
     return `/api/images/${val}`;
   }
@@ -62,7 +60,7 @@ function getHeroImageSrc(val: unknown): string {
     if (s.startsWith("http://") || s.startsWith("https://")) return s;
     if (/^\d+$/.test(s)) return `/api/images/${s}`;
   }
-  return fallbackImages[0];
+  return fallbackImages[fallbackIndex % fallbackImages.length];
 }
 
 export function HeroSection() {
@@ -135,13 +133,13 @@ export function HeroSection() {
     ? currentService.hero_images
     : [];
 
-  const heroImages = (
-    rawHeroImages.length === 4 ? rawHeroImages : fallbackImages
-  ).slice(0, 4);
+  const heroImages = Array.from({ length: 4 }, (_, index) => {
+    return rawHeroImages[index] ?? fallbackImages[index];
+  });
 
   if (services.length === 0) {
     return (
-      <section className="py-16 md:py-24">
+      <section className="py-8 md:py-12 lg:py-16">
         <div className="mx-auto max-w-[1280px] px-4 md:px-6 lg:px-8">
           <div className="flex items-center justify-center py-20">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-foreground/20 border-t-foreground" />
@@ -164,13 +162,14 @@ export function HeroSection() {
   const categoryKey = normalizeCategoryKey(
     currentService?.category || "website",
   );
+
   const categoryLabel =
     currentService?.custom_category ||
     getCategoryLabelSafe(categoryKey, language);
 
   return (
     <section
-      className="py-16 md:py-24"
+      className="py-8 md:py-12 lg:py-16"
       ref={carouselRef}
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
@@ -183,141 +182,17 @@ export function HeroSection() {
       aria-roledescription="carousel"
     >
       <div className="mx-auto max-w-[1280px] px-4 md:px-6 lg:px-8">
-        <div className="grid items-center gap-12 lg:grid-cols-2">
-          {/* Left column */}
-          <div
-            className="flex min-h-[520px] flex-col justify-between lg:min-h-[560px]"
-            role="group"
-            aria-roledescription="slide"
-            aria-label={`${currentSlide + 1} ${language === "es" ? "de" : "of"} ${services.length}`}
-          >
-            <div className="max-w-[560px] space-y-5 md:space-y-6">
-              {/* Category */}
-              <div className="flex items-center gap-2">
-                <span className="rounded-full bg-foreground px-3 py-1 text-xs font-medium text-background">
-                  {categoryLabel}
-                </span>
-                <span className="text-sm text-foreground/50">
-                  {currentSlide + 1} / {services.length}
-                </span>
-              </div>
-
-              {/* Title */}
-              <div>
-                <h1 className="text-4xl font-bold leading-[0.95] tracking-tight md:text-5xl lg:text-6xl">
-                  {serviceTitle}
-                </h1>
-              </div>
-
-              {/* Description */}
-              <div>
-                <p className="max-w-[520px] text-base leading-7 text-foreground/70 md:text-lg">
-                  {serviceDesc}
-                </p>
-              </div>
-            </div>
-
-            {/* Static buttons */}
-            <div className="mt-8 md:mt-10">
-              <div className="flex flex-wrap gap-3">
-                <Button asChild size="lg">
-                  <Link
-                    href={`/servicios?categoria=${encodeURIComponent(categoryKey)}`}
-                  >
-                    {language === "es" ? "Ver servicio" : "View service"}
-                  </Link>
-                </Button>
-
-                <Button variant="outline" asChild size="lg">
-                  <Link
-                    href={`/proyectos?categoria=${encodeURIComponent(categoryKey)}`}
-                  >
-                    {language === "es" ? "Ver proyectos" : "View projects"}
-                  </Link>
-                </Button>
-
-                <Button variant="ghost" asChild size="lg">
-                  <Link
-                    href={`/contacto?servicio=${encodeURIComponent(categoryKey)}`}
-                  >
-                    {language === "es" ? "Contactar" : "Contact"}
-                  </Link>
-                </Button>
-              </div>
-            </div>
-
-            {/* Controls pinned bottom */}
-            <div className="mt-auto pt-8 md:pt-10">
-              <div className="flex items-center gap-4">
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-10 w-10"
-                    onClick={() => {
-                      prevSlide();
-                      setIsPaused(true);
-                    }}
-                    aria-label={language === "es" ? "Anterior" : "Previous"}
-                  >
-                    <ChevronLeft className="h-5 w-5" />
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-10 w-10"
-                    onClick={() => {
-                      nextSlide();
-                      setIsPaused(true);
-                    }}
-                    aria-label={language === "es" ? "Siguiente" : "Next"}
-                  >
-                    <ChevronRight className="h-5 w-5" />
-                  </Button>
-                </div>
-
-                <div
-                  className="flex gap-2"
-                  role="tablist"
-                  aria-label={
-                    language === "es"
-                      ? "Indicadores del carrusel"
-                      : "Carousel indicators"
-                  }
-                >
-                  {services.map((_, index) => (
-                    <button
-                      key={index}
-                      onClick={() => {
-                        setCurrentSlide(index);
-                        setIsPaused(true);
-                      }}
-                      role="tab"
-                      aria-selected={index === currentSlide}
-                      aria-label={`${language === "es" ? "Ir a slide" : "Go to slide"} ${index + 1}`}
-                      className={`h-2 rounded-full transition-all ${
-                        index === currentSlide
-                          ? "w-8 bg-foreground"
-                          : "w-2 bg-foreground/20 hover:bg-foreground/40"
-                      }`}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Right column */}
-          <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-8 lg:grid-cols-2 lg:items-center lg:gap-10">
+          {/* Images first on mobile */}
+          <div className="order-1 grid grid-cols-2 gap-3 md:gap-4 lg:order-2">
             {heroImages.map((imgVal, index) => {
-              const src = getHeroImageSrc(imgVal);
+              const src = getHeroImageSrc(imgVal, index);
               const isApiImage = src.startsWith("/api/images/");
 
               return (
                 <div
                   key={`${currentSlide}-${index}`}
-                  className="relative aspect-[4/3] overflow-hidden rounded-2xl"
+                  className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-muted"
                 >
                   <Image
                     src={src}
@@ -332,6 +207,140 @@ export function HeroSection() {
                 </div>
               );
             })}
+          </div>
+
+          {/* Content second on mobile */}
+          <div
+            className="order-2 flex flex-col lg:order-1 lg:min-h-[420px] lg:justify-center"
+            role="group"
+            aria-roledescription="slide"
+            aria-label={`${currentSlide + 1} ${language === "es" ? "de" : "of"} ${services.length}`}
+          >
+            <div className="max-w-[560px] space-y-4 md:space-y-5 lg:space-y-6">
+              {/* Category */}
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-foreground px-3 py-1 text-xs font-medium text-background">
+                  {categoryLabel}
+                </span>
+                <span className="text-sm text-foreground/50">
+                  {currentSlide + 1} / {services.length}
+                </span>
+              </div>
+
+              {/* Title */}
+              <div className="min-h-[56px] md:min-h-[88px] lg:min-h-[96px]">
+                <h1 className="text-4xl font-bold leading-[0.95] tracking-tight md:text-5xl lg:text-6xl">
+                  {serviceTitle}
+                </h1>
+              </div>
+
+              {/* Description */}
+              <div className="min-h-[72px] md:min-h-[92px] lg:min-h-[84px]">
+                <p className="max-w-[520px] text-base leading-7 text-foreground/70 md:text-lg">
+                  {serviceDesc}
+                </p>
+              </div>
+
+              {/* CTA block fixed together */}
+              <div className="pt-1">
+                <div className="flex flex-wrap items-center gap-3 md:gap-4">
+                  <Button asChild size="lg" className="shrink-0">
+                    <Link
+                      href={`/servicios?categoria=${encodeURIComponent(categoryKey)}`}
+                    >
+                      {language === "es" ? "Ver servicio" : "View service"}
+                    </Link>
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    asChild
+                    size="lg"
+                    className="shrink-0"
+                  >
+                    <Link
+                      href={`/proyectos?categoria=${encodeURIComponent(categoryKey)}`}
+                    >
+                      {language === "es" ? "Ver proyectos" : "View projects"}
+                    </Link>
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    asChild
+                    size="lg"
+                    className="shrink-0 px-0 md:px-3"
+                  >
+                    <Link
+                      href={`/contacto?servicio=${encodeURIComponent(categoryKey)}`}
+                    >
+                      {language === "es" ? "Contactar" : "Contact"}
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Controls block fixed in same place */}
+              <div className="pt-3 md:pt-4">
+                <div className="flex items-center gap-4">
+                  <div className="flex shrink-0 gap-2">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-10 w-10 shrink-0"
+                      onClick={() => {
+                        prevSlide();
+                        setIsPaused(true);
+                      }}
+                      aria-label={language === "es" ? "Anterior" : "Previous"}
+                    >
+                      <ChevronLeft className="h-5 w-5" />
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-10 w-10 shrink-0"
+                      onClick={() => {
+                        nextSlide();
+                        setIsPaused(true);
+                      }}
+                      aria-label={language === "es" ? "Siguiente" : "Next"}
+                    >
+                      <ChevronRight className="h-5 w-5" />
+                    </Button>
+                  </div>
+
+                  <div
+                    className="flex items-center gap-2"
+                    role="tablist"
+                    aria-label={
+                      language === "es"
+                        ? "Indicadores del carrusel"
+                        : "Carousel indicators"
+                    }
+                  >
+                    {services.map((_, index) => (
+                      <button
+                        key={index}
+                        onClick={() => {
+                          setCurrentSlide(index);
+                          setIsPaused(true);
+                        }}
+                        role="tab"
+                        aria-selected={index === currentSlide}
+                        aria-label={`${language === "es" ? "Ir a slide" : "Go to slide"} ${index + 1}`}
+                        className={`h-2 rounded-full transition-all ${
+                          index === currentSlide
+                            ? "w-8 bg-foreground"
+                            : "w-2 bg-foreground/20 hover:bg-foreground/40"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
