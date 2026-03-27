@@ -80,8 +80,7 @@ export const translations = {
       gallery: "Galería",
       galleryDesc: "Un vistazo a los detalles, acabados y resultado final.",
       details: "Detalles del proyecto",
-      detailsNote:
-        "Nota: estos datos luego saldrán de base de datos. Por ahora están como ejemplo para el diseño.",
+      detailsNote: "",
       likeStyle: "¿Te gusta este estilo?",
       likeDesc:
         "Podemos hacer algo similar adaptado a tu espacio y necesidades.",
@@ -281,8 +280,7 @@ export const translations = {
       gallery: "Gallery",
       galleryDesc: "A look at the details, finishes and final result.",
       details: "Project details",
-      detailsNote:
-        "Note: this data will later come from the database. For now they are examples for the design.",
+      detailsNote: "",
       likeStyle: "Like this style?",
       likeDesc:
         "We can make something similar adapted to your space and needs.",
