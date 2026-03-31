@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import ServiciosClientPage from "./contacto-client-page";
+import ContactoClientPage from "./contacto-client-page";
 
 export const metadata: Metadata = {
-  title: "Web Design Services & Branding Solutions",
+  title: "Contact | Start Your Project",
   description:
-    "Explore web design, landing pages, branding and digital presence services created to help businesses look professional and grow online.",
+    "Get in touch with CodeDesignLA to discuss your website, branding or digital presence project and request a custom quote.",
 };
 
-export default function ServiciosPage() {
-  return <ServiciosClientPage />;
+export default function ContactoPage() {
+  return <ContactoClientPage />;
 }
