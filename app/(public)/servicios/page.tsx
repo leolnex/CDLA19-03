@@ -1,5 +1,5 @@
 "use client";
-import type { Metadata } from "next";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useLanguage } from "@/components/providers/language-provider";
@@ -19,11 +19,7 @@ import type { Service, ServiceCategory } from "@/lib/types";
 import { categoryLabels } from "@/lib/types";
 
 // --- Helpers: normalize + safe label/icon (avoids "Cannot read properties of undefined") ---
-export const metadata: Metadata = {
-  title: "Web Design Services & Branding Solutions",
-  description:
-    "Explore web design, landing pages, branding and digital presence services created to help businesses look professional and grow online.",
-};
+
 function normalizeCategoryKey(value?: string | null): ServiceCategory {
   if (!value) return "website";
   const v = String(value).toLowerCase().trim();

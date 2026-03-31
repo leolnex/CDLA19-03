@@ -1,5 +1,5 @@
 "use client";
-import type { Metadata } from "next";
+
 import { useEffect, useState, Suspense, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -20,11 +20,6 @@ function normalizeText(input: unknown): string {
     .toLowerCase()
     .trim();
 }
-export const metadata: Metadata = {
-  title: "Projects | Web Design & Branding Portfolio",
-  description:
-    "Browse selected web design, branding and digital projects created by CodeDesignLA for modern businesses and growing brands.",
-};
 
 // Canonical en UI/DB: app-movil (guion)
 function normalizeCategoryKey(value?: string | null): ServiceCategory {
