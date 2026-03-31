@@ -1,5 +1,5 @@
 "use client";
-
+import type { Metadata } from "next";
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useLanguage } from "@/components/providers/language-provider";
@@ -25,7 +25,11 @@ import {
 } from "lucide-react";
 import type { ServiceCategory } from "@/lib/types";
 import { categoryLabels } from "@/lib/types";
-
+export const metadata: Metadata = {
+  title: "Contact | Start Your Project",
+  description:
+    "Get in touch with CodeDesignLA to discuss your website, branding or digital presence project and request a custom quote.",
+};
 function ContactForm() {
   const { language, t } = useLanguage();
   const searchParams = useSearchParams();

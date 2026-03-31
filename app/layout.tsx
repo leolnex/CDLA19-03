@@ -14,15 +14,20 @@ const roboto = Roboto({
 });
 
 export const metadata: Metadata = {
-  title: "CodeDesignLA - La primera impresión es digital",
+  metadataBase: new URL("https://www.codedesignla.com"),
+  title: {
+    default: "CodeDesignLA | Web Design, Branding & Digital Presence",
+    template: "%s | CodeDesignLA",
+  },
   description:
-    "Desarrollo de software y soluciones digitales. Creación de páginas web, apps móviles, logos, redes sociales y tarjetas de presentación.",
+    "CodeDesignLA creates professional websites, branding, landing pages and digital presence solutions for modern businesses.",
   keywords: [
-    "desarrollo web",
-    "diseño",
-    "logo",
-    "apps móviles",
-    "redes sociales",
+    "web design",
+    "branding",
+    "landing pages",
+    "digital presence",
+    "website design",
+    "business websites",
     "CodeDesignLA",
   ],
   authors: [{ name: "CodeDesignLA" }],
@@ -39,11 +44,19 @@ export const metadata: Metadata = {
     ],
   },
   openGraph: {
-    title: "CodeDesignLA",
-    description: "La primera impresión es digital",
-    type: "website",
+    title: "CodeDesignLA | Web Design, Branding & Digital Presence",
+    description:
+      "CodeDesignLA creates professional websites, branding, landing pages and digital presence solutions for modern businesses.",
+    url: "https://www.codedesignla.com",
     siteName: "CodeDesignLA",
-    locale: "es_US",
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "CodeDesignLA | Web Design, Branding & Digital Presence",
+    description:
+      "CodeDesignLA creates professional websites, branding, landing pages and digital presence solutions for modern businesses.",
   },
 };
 
@@ -53,7 +66,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <body className={`${roboto.variable} font-sans antialiased`}>
         <ThemeProvider
           attribute="class"
